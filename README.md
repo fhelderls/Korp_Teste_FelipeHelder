@@ -94,6 +94,7 @@ Um workflow do GitHub Actions (`.github/workflows/ci.yml`) roda essa mesma suít
 - **RxJS**: o `HttpClient` do Angular devolve `Observable` em cada chamada (`listar`, `criar`, `imprimir`, `resumo`). Os componentes assinam esses Observables com `.subscribe({ next, error })`, tratando separadamente o caminho de sucesso e o de erro (é assim que a mensagem de falha do backend chega até a tela quando a impressão de uma nota falha, e que o indicador de "Processando..." é controlado durante a chamada).
 - **Signals**: o projeto foi gerado pelo Angular CLI (v21) sem `zone.js`, ou seja, roda em modo zoneless. Nesse modo, atribuir direto a uma propriedade normal da classe dentro de um `.subscribe()` não notifica a detecção de mudanças. Por isso o estado dos componentes (`produtos`, `notas`, `erro`, `resumoIA`, `itens`, `imprimindo`) é guardado em `signal()`, que é a primitiva reativa que funciona corretamente sem `zone.js`.
 - **Outras bibliotecas**: `FormsModule` (`[(ngModel)]`) para os formulários, com two-way binding simples em vez de Reactive Forms; `CurrencyPipe` para formatar preços. Os itens da nota usam um `<select>` com a descrição dos produtos (carregados do `estoque-service`), não o código.
+- **Componentes visuais**: nenhuma biblioteca de UI (sem Angular Material, Bootstrap etc.). CSS puro, escrito à mão, com um pequeno design system compartilhado em `styles.css` (cards, tabelas, badges de status, botões).
 
 ### Backend (Go)
 
