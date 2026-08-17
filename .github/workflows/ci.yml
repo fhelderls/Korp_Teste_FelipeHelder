@@ -1,0 +1,88 @@
+name: CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  estoque-service:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: korp
+          POSTGRES_PASSWORD: korp
+          POSTGRES_DB: estoque
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+      - name: Build
+        working-directory: ./estoque-service
+        run: go build ./...
+      - name: Vet
+        working-directory: ./estoque-service
+        run: go vet ./...
+      - name: Test
+        working-directory: ./estoque-service
+        env:
+          DATABASE_URL: postgres://korp:korp@localhost:5432/estoque?sslmode=disable
+        run: go test ./... -v
+
+  faturamento-service:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: korp
+          POSTGRES_PASSWORD: korp
+          POSTGRES_DB: faturamento
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.5'
+      - name: Build
+        working-directory: ./faturamento-service
+        run: go build ./...
+      - name: Vet
+        working-directory: ./faturamento-service
+        run: go vet ./...
+      - name: Test
+        working-directory: ./faturamento-service
+        env:
+          DATABASE_URL: postgres://korp:korp@localhost:5432/faturamento?sslmode=disable
+        run: go test ./... -v
+
+  frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install dependencies
+        working-directory: ./frontend
+        run: npm ci
+      - name: Build
+        working-directory: ./frontend
+        run: npx ng build
