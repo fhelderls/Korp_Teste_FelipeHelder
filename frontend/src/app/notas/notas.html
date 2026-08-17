@@ -85,7 +85,7 @@
 
   <div class="resumo-ia">
     <button type="button" class="btn-secundario" (click)="gerarResumo()" [disabled]="carregandoResumo()">
-      {{ carregandoResumo() ? 'Gerando...' : '✨ Gerar resumo com IA' }}
+      {{ carregandoResumo() ? 'Gerando...' : 'Gerar resumo com IA' }}
     </button>
     @if (resumoIA()) {
       <p class="texto-resumo">{{ resumoIA() }}</p>
