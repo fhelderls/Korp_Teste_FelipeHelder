@@ -23,16 +23,12 @@ func NewNotasHandlers(s *store.NotasStore, ec *client.EstoqueClient, ai *client.
 }
 
 type emitirRequest struct {
-	Chave   string            `json:"chave"`
 	Cliente string            `json:"cliente"`
 	Itens   []models.ItemNota `json:"itens"`
 }
 
-// Emitir orquestra a emissao de uma nota fiscal: grava a nota, reserva o
-// estoque, confirma a reserva. Se qualquer etapa falhar depois da reserva,
-// cancela a reserva para devolver o estoque (compensacao). Se a chave ja
-// existir, reaproveita a nota existente em vez de tentar criar de novo,
-// permitindo que o cliente reenvie a mesma requisicao com seguranca.
+// Emitir cria uma nota fiscal nova, com numero sequencial gerado
+// automaticamente pelo store, e tenta emitir (reservar + confirmar).
 func (h *NotasHandlers) Emitir(w http.ResponseWriter, r *http.Request) {
 	var req emitirRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -40,27 +36,49 @@ func (h *NotasHandlers) Emitir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	nota, err := h.store.GetByChave(req.Chave)
+	nota := models.NotaFiscal{
+		Cliente: req.Cliente,
+		Itens:   req.Itens,
+	}
+	if err := h.store.Create(&nota); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	h.processarEmissao(w, nota)
+}
+
+// Reprocessar tenta de novo a emissao de uma nota que ficou com status
+// 'falha', reaproveitando o mesmo numero e os mesmos itens (nenhuma nota
+// nova e criada). Se a nota ja estiver emitida, so devolve ela como esta.
+func (h *NotasHandlers) Reprocessar(w http.ResponseWriter, r *http.Request) {
+	chave := r.PathValue("chave")
+
+	nota, err := h.store.GetByChave(chave)
 	if err == sql.ErrNoRows {
-		nota = models.NotaFiscal{
-			Chave:   req.Chave,
-			Cliente: req.Cliente,
-			Itens:   req.Itens,
-		}
-		if err := h.store.Create(&nota); err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
+		http.Error(w, "nota fiscal nao encontrada", http.StatusNotFound)
+		return
 	} else if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
-	} else if nota.Status == "emitida" {
+	}
+
+	if nota.Status == "emitida" {
 		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
 		json.NewEncoder(w).Encode(nota)
 		return
 	}
 
+	h.processarEmissao(w, nota)
+}
+
+// processarEmissao roda o fluxo de reservar + confirmar para uma nota ja
+// gravada no banco (seja recem-criada ou sendo reprocessada), e escreve a
+// resposta HTTP. Se a reserva falhar, ou se a reserva for feita mas a
+// confirmacao falhar depois, a nota fica/volta com status 'falha' - no
+// segundo caso, a reserva e cancelada antes (compensacao).
+func (h *NotasHandlers) processarEmissao(w http.ResponseWriter, nota models.NotaFiscal) {
 	if err := h.estoqueClient.Reservar(nota.Chave, nota.Itens); err != nil {
 		h.store.AtualizarStatus(nota.Chave, "falha")
 		http.Error(w, "nao foi possivel reservar o estoque, nota marcada como falha: "+err.Error(), http.StatusServiceUnavailable)

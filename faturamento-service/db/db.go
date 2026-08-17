@@ -34,6 +34,11 @@ func InitSchema(db *sql.DB) error {
 		criado_em TIMESTAMP NOT NULL DEFAULT NOW()
 		)
 		`)
+	if err != nil {
+		return err
+	}
 
+	// sequencia usada para gerar o numero da nota fiscal automaticamente (NF-001, NF-002...)
+	_, err = db.Exec(`CREATE SEQUENCE IF NOT EXISTS notas_numero_seq START 1`)
 	return err
 }

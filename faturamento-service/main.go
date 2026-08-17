@@ -60,6 +60,7 @@ func main() {
 	mux.HandleFunc("POST /notas", notasHandlers.Emitir)
 	mux.HandleFunc("GET /notas/resumo", notasHandlers.Resumo)
 	mux.HandleFunc("GET /notas/{chave}/pdf", notasHandlers.PDF)
+	mux.HandleFunc("POST /notas/{chave}/reprocessar", notasHandlers.Reprocessar)
 
 	port := os.Getenv("PORT")
 	if port == "" {

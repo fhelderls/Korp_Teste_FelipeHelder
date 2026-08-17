@@ -7,7 +7,6 @@
 
   <form class="form-nota" (ngSubmit)="emitir()">
     <div class="form-linha">
-      <input [(ngModel)]="chave" name="chave" placeholder="Chave (ex: nf-001)" required>
       <input [(ngModel)]="cliente" name="cliente" placeholder="Cliente" required>
     </div>
 
@@ -62,8 +61,11 @@
             }
           </td>
           <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
-          <td>
+          <td class="acoes-tabela">
             <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
+            @if (nota.status === 'falha') {
+              <button type="button" class="btn-secundario" (click)="reprocessar(nota.chave)">Reprocessar</button>
+            }
           </td>
         </tr>
       } @empty {

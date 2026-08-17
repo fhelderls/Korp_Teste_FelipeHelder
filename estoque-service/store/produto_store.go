@@ -2,6 +2,7 @@ package store
 
 import (
 	"database/sql"
+	"fmt"
 
 	"korp-teste/estoque-service/models"
 )
@@ -14,8 +15,15 @@ func NewProdutosStore(db *sql.DB) *ProdutosStore {
 	return &ProdutosStore{db: db}
 }
 
-// Create insere um novo produto
+// Create insere um novo produto com codigo sequencial gerado automaticamente
+// (PROD-001, PROD-002...). Preenche produto.Codigo com o codigo gerado.
 func (s *ProdutosStore) Create(produto *models.Produto) error {
+	var numero int
+	if err := s.db.QueryRow(`SELECT nextval('produtos_codigo_seq')`).Scan(&numero); err != nil {
+		return fmt.Errorf("falha ao gerar codigo do produto: %w", err)
+	}
+	produto.Codigo = fmt.Sprintf("PROD-%03d", numero)
+
 	_, err := s.db.Exec(`
 		INSERT INTO produtos (codigo, descricao, saldo, preco)
 		VALUES ($1, $2, $3, $4)`, produto.Codigo, produto.Descricao, produto.Saldo, produto.Preco)

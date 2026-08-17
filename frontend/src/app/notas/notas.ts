@@ -1,7 +1,7 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotasService } from '../services/notas.service';
-import { NotaFiscal, ItemNota } from '../models/nota';
+import { NotaFiscal, ItemNota, EmitirRequest } from '../models/nota';
 
 @Component({
   selector: 'app-notas',
@@ -15,7 +15,6 @@ export class Notas implements OnInit {
   resumoIA = signal('');
   carregandoResumo = signal(false);
 
-  chave = '';
   cliente = '';
   itens = signal<ItemNota[]>([{ produto_codigo: '', quantidade: 1 }]);
 
@@ -54,22 +53,30 @@ export class Notas implements OnInit {
 
   emitir(): void {
     this.erro.set('');
-    const nota: NotaFiscal = {
-      chave: this.chave,
+    const nota: EmitirRequest = {
       cliente: this.cliente,
-      itens: this.itens(),
-      status: ''
+      itens: this.itens()
     };
 
     this.notasService.emitir(nota).subscribe({
       next: () => {
-        this.chave = '';
         this.cliente = '';
         this.itens.set([{ produto_codigo: '', quantidade: 1 }]);
         this.carregar();
       },
       error: (err) => {
         this.erro.set(err.error ?? 'Falha ao emitir nota fiscal');
+        this.carregar();
+      }
+    });
+  }
+
+  reprocessar(chave: string): void {
+    this.erro.set('');
+    this.notasService.reprocessar(chave).subscribe({
+      next: () => this.carregar(),
+      error: (err) => {
+        this.erro.set(err.error ?? 'Falha ao reprocessar nota fiscal');
         this.carregar();
       }
     });

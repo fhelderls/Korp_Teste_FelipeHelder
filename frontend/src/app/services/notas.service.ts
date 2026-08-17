@@ -1,7 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient } from '@angular/common/http';
 import { Observable } from 'rxjs';
-import { NotaFiscal } from '../models/nota';
+import { NotaFiscal, EmitirRequest } from '../models/nota';
 
 @Injectable({
   providedIn: 'root'
@@ -15,8 +15,12 @@ export class NotasService {
     return this.http.get<NotaFiscal[]>(`${this.baseUrl}/notas`);
   }
 
-  emitir(nota: NotaFiscal): Observable<NotaFiscal> {
+  emitir(nota: EmitirRequest): Observable<NotaFiscal> {
     return this.http.post<NotaFiscal>(`${this.baseUrl}/notas`, nota);
+  }
+
+  reprocessar(chave: string): Observable<NotaFiscal> {
+    return this.http.post<NotaFiscal>(`${this.baseUrl}/notas/${chave}/reprocessar`, {});
   }
 
   resumo(): Observable<{ resumo: string }> {

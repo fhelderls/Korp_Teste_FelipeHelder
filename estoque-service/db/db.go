@@ -51,5 +51,11 @@ func InitSchema(db *sql.DB) error {
 			criado_em TIMESTAMP NOT NULL DEFAULT NOW()
 		)
 	`)
+	if err != nil {
+		return err
+	}
+
+	// sequencia usada para gerar o codigo dos produtos automaticamente (PROD-001, PROD-002...)
+	_, err = db.Exec(`CREATE SEQUENCE IF NOT EXISTS produtos_codigo_seq START 1`)
 	return err
 }

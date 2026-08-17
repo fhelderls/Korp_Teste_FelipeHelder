@@ -147,6 +147,13 @@ form button[type="submit"]:hover {
 }
 
 /* Tabelas */
+.acoes-tabela {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
 th {
   text-align: left;
   font-size: 12px;

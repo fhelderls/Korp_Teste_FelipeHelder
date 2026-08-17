@@ -3,6 +3,7 @@ package store
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 
 	"korp-teste/faturamento-service/models"
 )
@@ -16,8 +17,16 @@ func NewNotasStore(db *sql.DB) *NotasStore {
 
 }
 
-// Create insere uma nova nota fiscal com status 'pendente'
+// Create insere uma nova nota fiscal com numero sequencial gerado
+// automaticamente (NF-001, NF-002...) e status 'pendente'. Preenche
+// nota.Chave com o numero gerado.
 func (s *NotasStore) Create(nota *models.NotaFiscal) error {
+	var numero int
+	if err := s.db.QueryRow(`SELECT nextval('notas_numero_seq')`).Scan(&numero); err != nil {
+		return fmt.Errorf("falha ao gerar numero da nota: %w", err)
+	}
+	nota.Chave = fmt.Sprintf("NF-%03d", numero)
+
 	itensJSON, err := json.Marshal(nota.Itens)
 	if err != nil {
 		return err

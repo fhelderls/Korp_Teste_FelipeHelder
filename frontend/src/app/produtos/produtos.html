@@ -6,7 +6,6 @@
   }
 
   <form class="form-inline" (ngSubmit)="criar()">
-    <input [(ngModel)]="novoProduto.codigo" name="codigo" placeholder="Código" required>
     <input [(ngModel)]="novoProduto.descricao" name="descricao" placeholder="Descrição" required>
     <input [(ngModel)]="novoProduto.saldo" name="saldo" type="number" placeholder="Saldo" required>
     <input [(ngModel)]="precoTexto" name="preco" type="text" inputmode="decimal" placeholder="Preço (ex: 25,50)" required>

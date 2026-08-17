@@ -33,18 +33,22 @@ func TestMain(m *testing.M) {
 
 func TestCreate_GetByChave(t *testing.T) {
 	store := NewNotasStore(testDB)
-	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, "TEST_NOTA_1")
 
 	nota := &models.NotaFiscal{
-		Chave:   "TEST_NOTA_1",
 		Cliente: "Cliente Teste",
 		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 2}},
 	}
 	if err := store.Create(nota); err != nil {
 		t.Fatalf("Create retornou erro inesperado: %v", err)
 	}
+	// Create preenche nota.Chave com o numero sequencial gerado (ex: NF-001)
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, nota.Chave)
 
-	encontrada, err := store.GetByChave("TEST_NOTA_1")
+	if nota.Chave == "" {
+		t.Fatal("Create deveria ter preenchido nota.Chave com o numero gerado")
+	}
+
+	encontrada, err := store.GetByChave(nota.Chave)
 	if err != nil {
 		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
 	}
@@ -58,22 +62,21 @@ func TestCreate_GetByChave(t *testing.T) {
 
 func TestAtualizarStatus(t *testing.T) {
 	store := NewNotasStore(testDB)
-	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, "TEST_NOTA_2")
 
 	nota := &models.NotaFiscal{
-		Chave:   "TEST_NOTA_2",
 		Cliente: "Cliente Teste",
 		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
 	}
 	if err := store.Create(nota); err != nil {
 		t.Fatalf("Create retornou erro inesperado: %v", err)
 	}
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, nota.Chave)
 
-	if err := store.AtualizarStatus("TEST_NOTA_2", "emitida"); err != nil {
+	if err := store.AtualizarStatus(nota.Chave, "emitida"); err != nil {
 		t.Fatalf("AtualizarStatus retornou erro inesperado: %v", err)
 	}
 
-	encontrada, err := store.GetByChave("TEST_NOTA_2")
+	encontrada, err := store.GetByChave(nota.Chave)
 	if err != nil {
 		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
 	}
