@@ -1,0 +1,33 @@
+<section>
+  <h2>Produtos</h2>
+
+  @if (erro) {
+    <p class="erro">{{ erro }}</p>
+  }
+
+  <form (ngSubmit)="criar()">
+    <input [(ngModel)]="novoProduto.codigo" name="codigo" placeholder="Código" required>
+    <input [(ngModel)]="novoProduto.descricao" name="descricao" placeholder="Descrição" required>
+    <input [(ngModel)]="novoProduto.saldo" name="saldo" type="number" placeholder="Saldo" required>
+    <button type="submit">Criar produto</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Código</th>
+        <th>Descrição</th>
+        <th>Saldo</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (produto of produtos; track produto.codigo) {
+        <tr>
+          <td>{{ produto.codigo }}</td>
+          <td>{{ produto.descricao }}</td>
+          <td>{{ produto.saldo }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>

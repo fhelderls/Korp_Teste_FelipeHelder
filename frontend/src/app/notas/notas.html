@@ -1,0 +1,40 @@
+<section>
+  <h2>Notas Fiscais</h2>
+
+  @if (erro) {
+    <p class="erro">{{ erro }}</p>
+  }
+
+  <form (ngSubmit)="emitir()">
+    <input [(ngModel)]="chave" name="chave" placeholder="Chave (ex: nf-001)" required>
+    <input [(ngModel)]="cliente" name="cliente" placeholder="Cliente" required>
+    <input [(ngModel)]="produtoCodigo" name="produtoCodigo" placeholder="Código do produto" required>
+    <input [(ngModel)]="quantidade" name="quantidade" type="number" placeholder="Quantidade" required>
+    <button type="submit">Emitir nota fiscal</button>
+  </form>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Chave</th>
+        <th>Cliente</th>
+        <th>Itens</th>
+        <th>Status</th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (nota of notas; track nota.chave) {
+        <tr>
+          <td>{{ nota.chave }}</td>
+          <td>{{ nota.cliente }}</td>
+          <td>
+            @for (item of nota.itens; track item.produto_codigo) {
+              {{ item.produto_codigo }} x{{ item.quantidade }}
+            }
+          </td>
+          <td>{{ nota.status }}</td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</section>
