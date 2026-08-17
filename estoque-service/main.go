@@ -10,6 +10,19 @@ import (
 	"korp-teste/estoque-service/store"
 )
 
+func withCORS(h http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Access-Control-Allow-Origin", "*")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		h.ServeHTTP(w, r)
+	})
+}
+
 func main() {
 
 	connString := os.Getenv("DATABASE_URL")
@@ -46,7 +59,8 @@ func main() {
 	}
 
 	log.Printf("estoque-service rodando na porta %s", port)
-	if err := http.ListenAndServe(":"+port, mux); err != nil {
+	if err := http.ListenAndServe(":"+port, withCORS(mux)); err != nil {
+
 		log.Fatalf("falha ao iniciar servidor: %v", err)
 
 	}
