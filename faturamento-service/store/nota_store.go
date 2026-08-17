@@ -47,7 +47,8 @@ func (s *NotasStore) GetAll() ([]models.NotaFiscal, error) {
 	}
 	defer rows.Close()
 
-	var notas []models.NotaFiscal
+	notas := []models.NotaFiscal{}
+
 	for rows.Next() {
 		var nota models.NotaFiscal
 		var itensJson string

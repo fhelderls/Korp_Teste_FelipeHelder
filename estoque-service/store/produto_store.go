@@ -30,7 +30,8 @@ func (s *ProdutosStore) GetAll() ([]models.Produto, error) {
 	}
 	defer rows.Close()
 
-	var produtos []models.Produto
+	produtos := []models.Produto{}
+
 	for rows.Next() {
 		var produto models.Produto
 		if err := rows.Scan(&produto.Codigo, &produto.Descricao, &produto.Saldo); err != nil {
