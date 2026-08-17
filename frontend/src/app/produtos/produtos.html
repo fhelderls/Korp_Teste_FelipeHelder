@@ -1,8 +1,8 @@
 <section>
   <h2>Produtos</h2>
 
-  @if (erro) {
-    <p class="erro">{{ erro }}</p>
+  @if (erro()) {
+    <p class="erro">{{ erro() }}</p>
   }
 
   <form (ngSubmit)="criar()">
@@ -21,7 +21,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (produto of produtos; track produto.codigo) {
+      @for (produto of produtos(); track produto.codigo) {
         <tr>
           <td>{{ produto.codigo }}</td>
           <td>{{ produto.descricao }}</td>

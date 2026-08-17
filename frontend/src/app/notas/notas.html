@@ -1,8 +1,8 @@
 <section>
   <h2>Notas Fiscais</h2>
 
-  @if (erro) {
-    <p class="erro">{{ erro }}</p>
+  @if (erro()) {
+    <p class="erro">{{ erro() }}</p>
   }
 
   <form (ngSubmit)="emitir()">
@@ -23,7 +23,7 @@
       </tr>
     </thead>
     <tbody>
-      @for (nota of notas; track nota.chave) {
+      @for (nota of notas(); track nota.chave) {
         <tr>
           <td>{{ nota.chave }}</td>
           <td>{{ nota.cliente }}</td>

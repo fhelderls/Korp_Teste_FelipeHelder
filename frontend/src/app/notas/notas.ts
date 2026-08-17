@@ -1,4 +1,4 @@
-import { Component, OnInit } from '@angular/core';
+import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotasService } from '../services/notas.service';
 import { NotaFiscal } from '../models/nota';
@@ -10,8 +10,8 @@ import { NotaFiscal } from '../models/nota';
   styleUrl: './notas.css'
 })
 export class Notas implements OnInit {
-  notas: NotaFiscal[] = [];
-  erro = '';
+  notas = signal<NotaFiscal[]>([]);
+  erro = signal('');
 
   chave = '';
   cliente = '';
@@ -26,13 +26,13 @@ export class Notas implements OnInit {
 
   carregar(): void {
     this.notasService.listar().subscribe({
-      next: (notas) => this.notas = notas,
-      error: (err) => this.erro = 'Falha ao carregar notas: ' + err.message
+      next: (notas) => this.notas.set(notas),
+      error: (err) => this.erro.set('Falha ao carregar notas: ' + err.message)
     });
   }
 
   emitir(): void {
-    this.erro = '';
+    this.erro.set('');
     const nota: NotaFiscal = {
       chave: this.chave,
       cliente: this.cliente,
@@ -49,7 +49,7 @@ export class Notas implements OnInit {
         this.carregar();
       },
       error: (err) => {
-        this.erro = err.error ?? 'Falha ao emitir nota fiscal';
+        this.erro.set(err.error ?? 'Falha ao emitir nota fiscal');
         this.carregar();
       }
     });
