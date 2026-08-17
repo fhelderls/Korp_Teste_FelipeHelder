@@ -38,6 +38,25 @@ func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if req.Cliente == "" {
+		http.Error(w, "cliente e obrigatorio", http.StatusBadRequest)
+		return
+	}
+	if len(req.Itens) == 0 {
+		http.Error(w, "a nota precisa de pelo menos um item", http.StatusBadRequest)
+		return
+	}
+	for _, item := range req.Itens {
+		if item.ProdutoCodigo == "" {
+			http.Error(w, "todo item precisa de um produto selecionado", http.StatusBadRequest)
+			return
+		}
+		if item.Quantidade <= 0 {
+			http.Error(w, "a quantidade de cada item precisa ser maior que zero", http.StatusBadRequest)
+			return
+		}
+	}
+
 	nota := models.NotaFiscal{
 		Cliente: req.Cliente,
 		Itens:   req.Itens,

@@ -67,6 +67,16 @@ export class Notas implements OnInit {
 
   criar(): void {
     this.erro.set('');
+
+    if (!this.cliente.trim()) {
+      this.erro.set('Preencha o cliente antes de criar a nota.');
+      return;
+    }
+    if (this.itens().some(item => !item.produto_codigo)) {
+      this.erro.set('Selecione um produto para cada item antes de criar a nota.');
+      return;
+    }
+
     const nota: CriarRequest = {
       cliente: this.cliente,
       itens: this.itens()
