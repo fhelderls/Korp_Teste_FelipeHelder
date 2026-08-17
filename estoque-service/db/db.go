@@ -29,9 +29,16 @@ func InitSchema(db *sql.DB) error {
 		CREATE TABLE IF NOT EXISTS produtos (
 			codigo VARCHAR(50) PRIMARY KEY,
 			descricao TEXT NOT NULL,
-			saldo INTEGER NOT NULL DEFAULT 0
+			saldo INTEGER NOT NULL DEFAULT 0,
+			preco NUMERIC(10,2) NOT NULL DEFAULT 0
 		)
 	`)
+	if err != nil {
+		return err
+	}
+
+	// garante a coluna preco em bancos que ja existiam antes dela ser adicionada
+	_, err = db.Exec(`ALTER TABLE produtos ADD COLUMN IF NOT EXISTS preco NUMERIC(10,2) NOT NULL DEFAULT 0`)
 	if err != nil {
 		return err
 	}

@@ -46,3 +46,13 @@ func (h *ProdutosHandlers) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(produtos)
 
 }
+
+// Delete remove um produto pelo codigo, lido da URL.
+func (h *ProdutosHandlers) Delete(w http.ResponseWriter, r *http.Request) {
+	codigo := r.PathValue("codigo")
+	if err := h.store.Delete(codigo); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}

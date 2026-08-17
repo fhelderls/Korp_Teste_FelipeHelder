@@ -1,1 +1,228 @@
-/* You can add global styles to this file, and also import other style files */
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+  background: #f4f5f7;
+  color: #1f2430;
+}
+
+input {
+  font-family: inherit;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+/* Cards das seções */
+.card {
+  background: #ffffff;
+  border-radius: 10px;
+  padding: 20px 24px 24px;
+  box-shadow: 0 1px 3px rgba(20, 25, 40, 0.08);
+}
+
+.card h2 {
+  font-size: 17px;
+  font-weight: 600;
+  margin: 0 0 16px;
+  color: #1f2430;
+}
+
+/* Mensagem de erro */
+.erro {
+  background: #fdecea;
+  color: #b3261e;
+  border: 1px solid #f3c4c0;
+  border-radius: 6px;
+  padding: 10px 14px;
+  font-size: 14px;
+  margin: 0 0 16px;
+}
+
+/* Formulários */
+.form-inline,
+.form-nota {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #eaecef;
+}
+
+.form-inline {
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.form-linha {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.itens {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.item-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
+.acoes-form {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  margin-top: 4px;
+}
+
+input[type="text"],
+input:not([type]),
+input[type="number"] {
+  padding: 8px 10px;
+  border: 1px solid #d7dae0;
+  border-radius: 6px;
+  font-size: 14px;
+  min-width: 0;
+  flex: 1;
+}
+
+input:focus {
+  outline: none;
+  border-color: #3d6ff2;
+  box-shadow: 0 0 0 3px rgba(61, 111, 242, 0.15);
+}
+
+/* Botões */
+button,
+.btn-pdf {
+  cursor: pointer;
+  border: none;
+  border-radius: 6px;
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  font-family: inherit;
+  display: inline-block;
+  text-decoration: none;
+}
+
+form button[type="submit"] {
+  background: #3d6ff2;
+  color: #fff;
+}
+
+form button[type="submit"]:hover {
+  background: #2f5bd1;
+}
+
+.btn-secundario {
+  background: #eef1f6;
+  color: #1f2430;
+}
+
+.btn-secundario:hover {
+  background: #e2e6ee;
+}
+
+.btn-excluir {
+  background: #fdecea;
+  color: #b3261e;
+  padding: 6px 12px;
+  font-size: 13px;
+}
+
+.btn-excluir:hover {
+  background: #f9d4d1;
+}
+
+/* Tabelas */
+th {
+  text-align: left;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #6b7280;
+  padding: 8px 10px;
+  border-bottom: 2px solid #eaecef;
+}
+
+td {
+  padding: 10px;
+  border-bottom: 1px solid #f0f1f3;
+  font-size: 14px;
+}
+
+tbody tr:hover {
+  background: #fafbfc;
+}
+
+.vazio {
+  text-align: center;
+  color: #9aa0ab;
+  font-style: italic;
+  padding: 20px;
+}
+
+/* Badges */
+.item-badge {
+  display: inline-block;
+  background: #eef1f6;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  margin: 2px 4px 2px 0;
+}
+
+.status-badge {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.status-emitida {
+  background: #e3f7e8;
+  color: #1a7f37;
+}
+
+.status-badge.status-falha {
+  background: #fdecea;
+  color: #b3261e;
+}
+
+.status-badge.status-pendente,
+.status-badge.status-confirmada {
+  background: #fff4d6;
+  color: #8a6100;
+}
+
+/* Resumo com IA */
+.resumo-ia {
+  margin-top: 20px;
+  padding-top: 16px;
+  border-top: 1px solid #eaecef;
+}
+
+.texto-resumo {
+  margin-top: 12px;
+  padding: 14px 16px;
+  background: #f2f4fb;
+  border-left: 3px solid #3d6ff2;
+  border-radius: 4px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: #1f2430;
+}

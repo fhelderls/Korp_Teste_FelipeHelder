@@ -17,14 +17,14 @@ func NewProdutosStore(db *sql.DB) *ProdutosStore {
 // Create insere um novo produto
 func (s *ProdutosStore) Create(produto *models.Produto) error {
 	_, err := s.db.Exec(`
-		INSERT INTO produtos (codigo, descricao, saldo)
-		VALUES ($1, $2, $3)`, produto.Codigo, produto.Descricao, produto.Saldo)
+		INSERT INTO produtos (codigo, descricao, saldo, preco)
+		VALUES ($1, $2, $3, $4)`, produto.Codigo, produto.Descricao, produto.Saldo, produto.Preco)
 	return err
 }
 
 // GetAll retorna todos os produtos cadastrados no banco de dados
 func (s *ProdutosStore) GetAll() ([]models.Produto, error) {
-	rows, err := s.db.Query(`SELECT codigo, descricao, saldo FROM produtos ORDER BY codigo`)
+	rows, err := s.db.Query(`SELECT codigo, descricao, saldo, preco FROM produtos ORDER BY codigo`)
 	if err != nil {
 		return nil, err
 	}
@@ -34,7 +34,7 @@ func (s *ProdutosStore) GetAll() ([]models.Produto, error) {
 
 	for rows.Next() {
 		var produto models.Produto
-		if err := rows.Scan(&produto.Codigo, &produto.Descricao, &produto.Saldo); err != nil {
+		if err := rows.Scan(&produto.Codigo, &produto.Descricao, &produto.Saldo, &produto.Preco); err != nil {
 			return nil, err
 		}
 		produtos = append(produtos, produto)
@@ -47,8 +47,14 @@ func (s *ProdutosStore) GetAll() ([]models.Produto, error) {
 func (s *ProdutosStore) GetByCodigo(codigo string) (models.Produto, error) {
 	var p models.Produto
 	err := s.db.QueryRow(
-		`SELECT codigo, descricao, saldo FROM produtos WHERE codigo = $1`,
+		`SELECT codigo, descricao, saldo, preco FROM produtos WHERE codigo = $1`,
 		codigo,
-	).Scan(&p.Codigo, &p.Descricao, &p.Saldo)
+	).Scan(&p.Codigo, &p.Descricao, &p.Saldo, &p.Preco)
 	return p, err
+}
+
+// Delete remove um produto pelo codigo.
+func (s *ProdutosStore) Delete(codigo string) error {
+	_, err := s.db.Exec(`DELETE FROM produtos WHERE codigo = $1`, codigo)
+	return err
 }
