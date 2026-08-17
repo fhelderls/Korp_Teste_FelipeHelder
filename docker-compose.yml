@@ -33,6 +33,7 @@ services:
       DATABASE_URL: postgres://korp:korp@postgres:5432/faturamento?sslmode=disable
       ESTOQUE_SERVICE_URL: http://estoque-service:8081
       PORT: "8082"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY}
     ports:
       - "8082:8082"
     depends_on:

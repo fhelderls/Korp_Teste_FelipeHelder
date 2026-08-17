@@ -1,0 +1,15 @@
+main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 24px 20px 60px;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+h1 {
+  font-size: 22px;
+  font-weight: 600;
+  color: #1f2430;
+  margin: 8px 0 0;
+}

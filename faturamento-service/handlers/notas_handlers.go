@@ -3,20 +3,23 @@ package handlers
 import (
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"korp-teste/faturamento-service/client"
 	"korp-teste/faturamento-service/models"
+	"korp-teste/faturamento-service/pdf"
 	"korp-teste/faturamento-service/store"
 )
 
 type NotasHandlers struct {
 	store         *store.NotasStore
 	estoqueClient *client.EstoqueClient
+	aiClient      *client.AnthropicClient
 }
 
-func NewNotasHandlers(s *store.NotasStore, ec *client.EstoqueClient) *NotasHandlers {
-	return &NotasHandlers{store: s, estoqueClient: ec}
+func NewNotasHandlers(s *store.NotasStore, ec *client.EstoqueClient, ai *client.AnthropicClient) *NotasHandlers {
+	return &NotasHandlers{store: s, estoqueClient: ec, aiClient: ai}
 }
 
 type emitirRequest struct {
@@ -89,4 +92,102 @@ func (h *NotasHandlers) List(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(notas)
+}
+
+// Resumo agrega os dados das notas emitidas (contagem por status, valor
+// liquido de vendas, quantidade e valor por produto e por cliente, no
+// estilo do painel de insights da Korp) e pede pra IA gerar um resumo
+// curto em linguagem natural sobre eles.
+func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
+	notas, err := h.store.GetAll()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	precos := map[string]float64{}
+	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
+		for _, p := range produtos {
+			precos[p.Codigo] = p.Preco
+		}
+	}
+
+	contagem := map[string]int{}
+	quantidadePorProduto := map[string]int{}
+	valorPorProduto := map[string]float64{}
+	quantidadePorCliente := map[string]int{}
+	valorPorCliente := map[string]float64{}
+	quantidadeTotal := 0
+	valorTotal := 0.0
+
+	for _, nota := range notas {
+		contagem[nota.Status]++
+		if nota.Status != "emitida" {
+			continue
+		}
+		for _, item := range nota.Itens {
+			valorItem := precos[item.ProdutoCodigo] * float64(item.Quantidade)
+			quantidadeTotal += item.Quantidade
+			valorTotal += valorItem
+			quantidadePorProduto[item.ProdutoCodigo] += item.Quantidade
+			valorPorProduto[item.ProdutoCodigo] += valorItem
+			quantidadePorCliente[nota.Cliente] += item.Quantidade
+			valorPorCliente[nota.Cliente] += valorItem
+		}
+	}
+
+	prompt := fmt.Sprintf(
+		"Voce e um assistente de insights de um sistema de emissao de notas fiscais, no estilo do painel de "+
+			"insights de vendas da Korp (ERP). Gere um resumo curto (3 a 5 frases, em portugues, sem introducao, "+
+			"direto ao ponto) com base nestes dados: %d notas emitidas, %d com falha, %d pendentes. "+
+			"Quantidade total vendida: %d unidades. Valor liquido de vendas total: R$ %.2f. "+
+			"Quantidade vendida por produto: %v. Valor de vendas por produto: %v. "+
+			"Quantidade vendida por cliente: %v. Valor de vendas por cliente: %v. "+
+			"Destaque o produto mais vendido e o cliente com maior valor de compra.",
+		contagem["emitida"], contagem["falha"], contagem["pendente"],
+		quantidadeTotal, valorTotal,
+		quantidadePorProduto, valorPorProduto,
+		quantidadePorCliente, valorPorCliente,
+	)
+
+	resumo, err := h.aiClient.Resumir(prompt)
+	if err != nil {
+		http.Error(w, "falha ao gerar resumo com IA: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"resumo": resumo})
+}
+
+// PDF gera e devolve o PDF de uma nota fiscal, buscando a descricao e o
+// preco atual dos produtos no estoque-service para montar a tabela.
+func (h *NotasHandlers) PDF(w http.ResponseWriter, r *http.Request) {
+	chave := r.PathValue("chave")
+
+	nota, err := h.store.GetByChave(chave)
+	if err == sql.ErrNoRows {
+		http.Error(w, "nota fiscal nao encontrada", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	produtosInfo := map[string]pdf.InfoProduto{}
+	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
+		for _, p := range produtos {
+			produtosInfo[p.Codigo] = pdf.InfoProduto{Descricao: p.Descricao, Preco: p.Preco}
+		}
+	}
+
+	arquivo, err := pdf.GerarNotaFiscal(nota, produtosInfo)
+	if err != nil {
+		http.Error(w, "falha ao gerar PDF: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", fmt.Sprintf(`attachment; filename="nota-%s.pdf"`, nota.Chave))
+	w.Write(arquivo)
 }

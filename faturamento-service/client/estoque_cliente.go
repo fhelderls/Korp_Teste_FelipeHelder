@@ -73,3 +73,30 @@ func (c *EstoqueClient) Cancelar(chave string) error {
 	}
 	return nil
 }
+
+// ProdutoResumo tem so os campos que o faturamento-service precisa dos
+// produtos do estoque-service (preco, para calcular valor de vendas).
+type ProdutoResumo struct {
+	Codigo    string  `json:"codigo"`
+	Descricao string  `json:"descricao"`
+	Preco     float64 `json:"preco"`
+}
+
+// ListarProdutos chama GET /produtos no estoque-service.
+func (c *EstoqueClient) ListarProdutos() ([]ProdutoResumo, error) {
+	resp, err := c.http.Get(c.baseURL + "/produtos")
+	if err != nil {
+		return nil, fmt.Errorf("falha ao chamar estoque-service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("estoque-service recusou a listagem de produtos (status %d)", resp.StatusCode)
+	}
+
+	var produtos []ProdutoResumo
+	if err := json.NewDecoder(resp.Body).Decode(&produtos); err != nil {
+		return nil, fmt.Errorf("falha ao interpretar resposta do estoque-service: %w", err)
+	}
+	return produtos, nil
+}

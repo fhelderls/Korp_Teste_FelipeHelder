@@ -11,3 +11,6 @@ reserva*.json
 # Node (frontend Angular, quando existir)
 node_modules/
 dist/
+
+# Segredos - NUNCA commitar a chave de API de verdade
+.env

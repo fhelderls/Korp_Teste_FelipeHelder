@@ -18,4 +18,8 @@ export class NotasService {
   emitir(nota: NotaFiscal): Observable<NotaFiscal> {
     return this.http.post<NotaFiscal>(`${this.baseUrl}/notas`, nota);
   }
+
+  resumo(): Observable<{ resumo: string }> {
+    return this.http.get<{ resumo: string }>(`${this.baseUrl}/notas/resumo`);
+  }
 }

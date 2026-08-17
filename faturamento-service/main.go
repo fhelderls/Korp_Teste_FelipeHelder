@@ -14,7 +14,7 @@ import (
 func withCORS(h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Access-Control-Allow-Origin", "*")
-		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS")
 		w.Header().Set("Access-Control-Allow-Headers", "Content-Type")
 		if r.Method == http.MethodOptions {
 			w.WriteHeader(http.StatusNoContent)
@@ -45,13 +45,21 @@ func main() {
 		log.Fatal("variavel de ambiente ESTOQUE_SERVICE_URL nao definida")
 	}
 
+	anthropicAPIKey := os.Getenv("ANTHROPIC_API_KEY")
+	if anthropicAPIKey == "" {
+		log.Println("aviso: ANTHROPIC_API_KEY nao definida, o resumo com IA nao vai funcionar")
+	}
+
 	notasStore := store.NewNotasStore(database)
 	estoqueClient := client.NewEstoqueClient(estoqueURL)
-	notasHandlers := handlers.NewNotasHandlers(notasStore, estoqueClient)
+	aiClient := client.NewAnthropicClient(anthropicAPIKey)
+	notasHandlers := handlers.NewNotasHandlers(notasStore, estoqueClient, aiClient)
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /notas", notasHandlers.List)
 	mux.HandleFunc("POST /notas", notasHandlers.Emitir)
+	mux.HandleFunc("GET /notas/resumo", notasHandlers.Resumo)
+	mux.HandleFunc("GET /notas/{chave}/pdf", notasHandlers.PDF)
 
 	port := os.Getenv("PORT")
 	if port == "" {
