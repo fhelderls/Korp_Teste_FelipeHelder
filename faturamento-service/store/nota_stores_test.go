@@ -1,0 +1,92 @@
+package store
+
+import (
+	"database/sql"
+	"os"
+	"testing"
+
+	"korp-teste/faturamento-service/db"
+	"korp-teste/faturamento-service/models"
+)
+
+var testDB *sql.DB
+
+func TestMain(m *testing.M) {
+	connString := os.Getenv("DATABASE_URL")
+	if connString == "" {
+		connString = "postgres://korp:korp@localhost:5435/faturamento?sslmode=disable"
+	}
+
+	database, err := db.Connect(connString)
+	if err != nil {
+		panic("falha ao conectar ao banco de teste: " + err.Error())
+	}
+	if err := db.InitSchema(database); err != nil {
+		panic("falha ao inicializar schema de teste: " + err.Error())
+	}
+
+	testDB = database
+	code := m.Run()
+	database.Close()
+	os.Exit(code)
+}
+
+func TestCreate_GetByChave(t *testing.T) {
+	store := NewNotasStore(testDB)
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, "TEST_NOTA_1")
+
+	nota := &models.NotaFiscal{
+		Chave:   "TEST_NOTA_1",
+		Cliente: "Cliente Teste",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 2}},
+	}
+	if err := store.Create(nota); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+
+	encontrada, err := store.GetByChave("TEST_NOTA_1")
+	if err != nil {
+		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
+	}
+	if encontrada.Status != "pendente" {
+		t.Errorf("status esperado 'pendente', obtido %q", encontrada.Status)
+	}
+	if len(encontrada.Itens) != 1 || encontrada.Itens[0].ProdutoCodigo != "P001" {
+		t.Errorf("itens nao vieram como esperado: %+v", encontrada.Itens)
+	}
+}
+
+func TestAtualizarStatus(t *testing.T) {
+	store := NewNotasStore(testDB)
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, "TEST_NOTA_2")
+
+	nota := &models.NotaFiscal{
+		Chave:   "TEST_NOTA_2",
+		Cliente: "Cliente Teste",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
+	}
+	if err := store.Create(nota); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+
+	if err := store.AtualizarStatus("TEST_NOTA_2", "emitida"); err != nil {
+		t.Fatalf("AtualizarStatus retornou erro inesperado: %v", err)
+	}
+
+	encontrada, err := store.GetByChave("TEST_NOTA_2")
+	if err != nil {
+		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
+	}
+	if encontrada.Status != "emitida" {
+		t.Errorf("status esperado 'emitida', obtido %q", encontrada.Status)
+	}
+}
+
+func TestGetByChave_NaoEncontrada(t *testing.T) {
+	store := NewNotasStore(testDB)
+
+	_, err := store.GetByChave("CHAVE_QUE_NAO_EXISTE")
+	if err != sql.ErrNoRows {
+		t.Errorf("esperava sql.ErrNoRows, obtido %v", err)
+	}
+}
