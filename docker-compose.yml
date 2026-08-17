@@ -26,6 +26,7 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+    restart: on-failure
 
   faturamento-service:
     build: ./faturamento-service
@@ -41,6 +42,7 @@ services:
         condition: service_healthy
       estoque-service:
         condition: service_started
+    restart: on-failure
 
   frontend:
     build: ./frontend
