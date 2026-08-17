@@ -5,7 +5,7 @@
     <p class="erro">{{ erro() }}</p>
   }
 
-  <form class="form-nota" (ngSubmit)="emitir()">
+  <form class="form-nota" (ngSubmit)="criar()">
     <div class="form-linha">
       <input [(ngModel)]="cliente" name="cliente" placeholder="Cliente" required>
     </div>
@@ -13,12 +13,16 @@
     <div class="itens">
       @for (item of itens(); track $index) {
         <div class="item-row">
-          <input
+          <select
             [ngModel]="item.produto_codigo"
             (ngModelChange)="atualizarProduto($index, $event)"
             name="produtoCodigo{{ $index }}"
-            placeholder="Código do produto"
             required>
+            <option value="" disabled selected>Selecione o produto</option>
+            @for (produto of produtos(); track produto.codigo) {
+              <option [value]="produto.codigo">{{ produto.descricao }}</option>
+            }
+          </select>
           <input
             [ngModel]="item.quantidade"
             (ngModelChange)="atualizarQuantidade($index, $event)"
@@ -36,7 +40,7 @@
 
     <div class="acoes-form">
       <button type="button" class="btn-secundario" (click)="adicionarItem()">+ Adicionar produto</button>
-      <button type="submit">Emitir nota fiscal</button>
+      <button type="submit">Criar nota fiscal</button>
     </div>
   </form>
 
@@ -57,20 +61,23 @@
           <td>{{ nota.cliente }}</td>
           <td>
             @for (item of nota.itens; track item.produto_codigo) {
-              <span class="item-badge">{{ item.produto_codigo }} x{{ item.quantidade }}</span>
+              <span class="item-badge">{{ descricaoProduto(item.produto_codigo) }} x{{ item.quantidade }}</span>
             }
           </td>
           <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
           <td class="acoes-tabela">
-            <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
-            @if (nota.status === 'falha') {
-              <button type="button" class="btn-secundario" (click)="reprocessar(nota.chave)">Reprocessar</button>
+            @if (nota.status === 'Aberta') {
+              <button type="button" class="btn-secundario" (click)="imprimir(nota)" [disabled]="imprimindo() === nota.chave">
+                {{ imprimindo() === nota.chave ? 'Processando...' : 'Imprimir' }}
+              </button>
+            } @else {
+              <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
             }
           </td>
         </tr>
       } @empty {
         <tr>
-          <td colspan="5" class="vazio">Nenhuma nota fiscal emitida ainda.</td>
+          <td colspan="5" class="vazio">Nenhuma nota fiscal cadastrada ainda.</td>
         </tr>
       }
     </tbody>

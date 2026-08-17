@@ -30,7 +30,7 @@ func InitSchema(db *sql.DB) error {
 		chave VARCHAR(100) PRIMARY KEY,
 		cliente TEXT NOT NULL,
 		itens TEXT NOT NULL,
-		status VARCHAR(20) NOT NULL DEFAULT 'pendente',
+		status VARCHAR(20) NOT NULL DEFAULT 'Aberta',
 		criado_em TIMESTAMP NOT NULL DEFAULT NOW()
 		)
 		`)

@@ -1,7 +1,9 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { NotasService } from '../services/notas.service';
-import { NotaFiscal, ItemNota, EmitirRequest } from '../models/nota';
+import { ProdutosService } from '../services/produtos.service';
+import { NotaFiscal, ItemNota, CriarRequest } from '../models/nota';
+import { Produto } from '../models/produto';
 
 @Component({
   selector: 'app-notas',
@@ -11,17 +13,25 @@ import { NotaFiscal, ItemNota, EmitirRequest } from '../models/nota';
 })
 export class Notas implements OnInit {
   notas = signal<NotaFiscal[]>([]);
+  produtos = signal<Produto[]>([]);
   erro = signal('');
   resumoIA = signal('');
   carregandoResumo = signal(false);
+  imprimindo = signal<string | null>(null);
 
   cliente = '';
   itens = signal<ItemNota[]>([{ produto_codigo: '', quantidade: 1 }]);
 
-  constructor(private notasService: NotasService) {}
+  constructor(
+    private notasService: NotasService,
+    private produtosService: ProdutosService
+  ) {}
 
   ngOnInit(): void {
     this.carregar();
+    this.produtosService.listar().subscribe({
+      next: (produtos) => this.produtos.set(produtos)
+    });
   }
 
   carregar(): void {
@@ -29,6 +39,10 @@ export class Notas implements OnInit {
       next: (notas) => this.notas.set(notas),
       error: (err) => this.erro.set('Falha ao carregar notas: ' + err.message)
     });
+  }
+
+  descricaoProduto(codigo: string): string {
+    return this.produtos().find(p => p.codigo === codigo)?.descricao ?? codigo;
   }
 
   adicionarItem(): void {
@@ -51,39 +65,46 @@ export class Notas implements OnInit {
     );
   }
 
-  emitir(): void {
+  criar(): void {
     this.erro.set('');
-    const nota: EmitirRequest = {
+    const nota: CriarRequest = {
       cliente: this.cliente,
       itens: this.itens()
     };
 
-    this.notasService.emitir(nota).subscribe({
+    this.notasService.criar(nota).subscribe({
       next: () => {
         this.cliente = '';
         this.itens.set([{ produto_codigo: '', quantidade: 1 }]);
         this.carregar();
       },
-      error: (err) => {
-        this.erro.set(err.error ?? 'Falha ao emitir nota fiscal');
-        this.carregar();
-      }
+      error: (err) => this.erro.set(err.error ?? 'Falha ao criar nota fiscal')
     });
   }
 
-  reprocessar(chave: string): void {
+  // Imprimir e a acao que de fato debita o estoque e fecha a nota. So
+  // funciona em notas 'Aberta'; se falhar, a nota continua 'Aberta' e o
+  // usuario pode clicar em Imprimir de novo.
+  imprimir(nota: NotaFiscal): void {
     this.erro.set('');
-    this.notasService.reprocessar(chave).subscribe({
-      next: () => this.carregar(),
+    this.imprimindo.set(nota.chave);
+
+    this.notasService.imprimir(nota.chave).subscribe({
+      next: () => {
+        this.imprimindo.set(null);
+        this.carregar();
+        window.open(this.notasService.pdfUrl(nota.chave), '_blank');
+      },
       error: (err) => {
-        this.erro.set(err.error ?? 'Falha ao reprocessar nota fiscal');
+        this.imprimindo.set(null);
+        this.erro.set(err.error ?? 'Falha ao imprimir nota fiscal');
         this.carregar();
       }
     });
   }
 
   pdfUrl(chave: string): string {
-    return `http://localhost:8082/notas/${chave}/pdf`;
+    return this.notasService.pdfUrl(chave);
   }
 
   gerarResumo(): void {

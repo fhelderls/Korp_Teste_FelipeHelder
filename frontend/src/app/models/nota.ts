@@ -10,9 +10,10 @@ export interface NotaFiscal {
   status: string;
 }
 
-// EmitirRequest e o que o cliente envia para criar uma nota nova - a chave
-// (numero da nota, ex: NF-001) e gerada pelo backend, nunca pelo cliente.
-export interface EmitirRequest {
+// CriarRequest e o que o cliente envia para cadastrar uma nota nova - a
+// chave (numero da nota, ex: NF-001) e gerada pelo backend, nunca pelo
+// cliente. A nota nasce como "Aberta"; imprimir e uma acao separada.
+export interface CriarRequest {
   cliente: string;
   itens: ItemNota[];
 }

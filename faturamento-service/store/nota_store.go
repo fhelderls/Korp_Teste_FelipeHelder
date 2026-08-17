@@ -18,8 +18,10 @@ func NewNotasStore(db *sql.DB) *NotasStore {
 }
 
 // Create insere uma nova nota fiscal com numero sequencial gerado
-// automaticamente (NF-001, NF-002...) e status 'pendente'. Preenche
-// nota.Chave com o numero gerado.
+// automaticamente (NF-001, NF-002...) e status 'Aberta'. Preenche
+// nota.Chave com o numero gerado. Nao mexe em estoque nenhum - so grava
+// o cadastro, conforme o edital pede (criar e imprimir sao acoes
+// separadas).
 func (s *NotasStore) Create(nota *models.NotaFiscal) error {
 	var numero int
 	if err := s.db.QueryRow(`SELECT nextval('notas_numero_seq')`).Scan(&numero); err != nil {
@@ -32,14 +34,14 @@ func (s *NotasStore) Create(nota *models.NotaFiscal) error {
 		return err
 	}
 	_, err = s.db.Exec(
-		`INSERT INTO notas (chave, cliente, itens, status) VALUES ($1,$2,$3,'pendente')`,
+		`INSERT INTO notas (chave, cliente, itens, status) VALUES ($1,$2,$3,'Aberta')`,
 		nota.Chave, nota.Cliente, string(itensJSON),
 	)
 	return err
 
 }
 
-// AtualizarStatus muda o status de uma nota fiscal (ex: para "emitida" ou "falha").
+// AtualizarStatus muda o status de uma nota fiscal (ex: para "Fechada").
 func (s *NotasStore) AtualizarStatus(chave, status string) error {
 	_, err := s.db.Exec(
 		`UPDATE notas SET status = $1 WHERE chave = $2`,

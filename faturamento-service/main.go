@@ -57,10 +57,10 @@ func main() {
 
 	mux := http.NewServeMux()
 	mux.HandleFunc("GET /notas", notasHandlers.List)
-	mux.HandleFunc("POST /notas", notasHandlers.Emitir)
+	mux.HandleFunc("POST /notas", notasHandlers.Criar)
+	mux.HandleFunc("POST /notas/{chave}/imprimir", notasHandlers.Imprimir)
 	mux.HandleFunc("GET /notas/resumo", notasHandlers.Resumo)
 	mux.HandleFunc("GET /notas/{chave}/pdf", notasHandlers.PDF)
-	mux.HandleFunc("POST /notas/{chave}/reprocessar", notasHandlers.Reprocessar)
 
 	port := os.Getenv("PORT")
 	if port == "" {

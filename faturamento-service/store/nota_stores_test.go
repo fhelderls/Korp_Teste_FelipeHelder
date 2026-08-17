@@ -52,8 +52,8 @@ func TestCreate_GetByChave(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
 	}
-	if encontrada.Status != "pendente" {
-		t.Errorf("status esperado 'pendente', obtido %q", encontrada.Status)
+	if encontrada.Status != "Aberta" {
+		t.Errorf("status esperado 'Aberta', obtido %q", encontrada.Status)
 	}
 	if len(encontrada.Itens) != 1 || encontrada.Itens[0].ProdutoCodigo != "P001" {
 		t.Errorf("itens nao vieram como esperado: %+v", encontrada.Itens)
@@ -72,7 +72,7 @@ func TestAtualizarStatus(t *testing.T) {
 	}
 	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, nota.Chave)
 
-	if err := store.AtualizarStatus(nota.Chave, "emitida"); err != nil {
+	if err := store.AtualizarStatus(nota.Chave, "Fechada"); err != nil {
 		t.Fatalf("AtualizarStatus retornou erro inesperado: %v", err)
 	}
 
@@ -80,8 +80,8 @@ func TestAtualizarStatus(t *testing.T) {
 	if err != nil {
 		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
 	}
-	if encontrada.Status != "emitida" {
-		t.Errorf("status esperado 'emitida', obtido %q", encontrada.Status)
+	if encontrada.Status != "Fechada" {
+		t.Errorf("status esperado 'Fechada', obtido %q", encontrada.Status)
 	}
 }
 
