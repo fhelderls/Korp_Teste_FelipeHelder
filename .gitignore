@@ -1,0 +1,13 @@
+# Payloads de teste usados no curl durante o desenvolvimento
+produto.json
+produto*.json
+nota_*.json
+reserva*.json
+
+# Binarios Go
+/estoque-service/estoque-service
+/faturamento-service/faturamento-service
+
+# Node (frontend Angular, quando existir)
+node_modules/
+dist/
