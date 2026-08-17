@@ -1,16 +1,44 @@
-<section>
+<section class="card">
   <h2>Notas Fiscais</h2>
 
   @if (erro()) {
     <p class="erro">{{ erro() }}</p>
   }
 
-  <form (ngSubmit)="emitir()">
-    <input [(ngModel)]="chave" name="chave" placeholder="Chave (ex: nf-001)" required>
-    <input [(ngModel)]="cliente" name="cliente" placeholder="Cliente" required>
-    <input [(ngModel)]="produtoCodigo" name="produtoCodigo" placeholder="Código do produto" required>
-    <input [(ngModel)]="quantidade" name="quantidade" type="number" placeholder="Quantidade" required>
-    <button type="submit">Emitir nota fiscal</button>
+  <form class="form-nota" (ngSubmit)="emitir()">
+    <div class="form-linha">
+      <input [(ngModel)]="chave" name="chave" placeholder="Chave (ex: nf-001)" required>
+      <input [(ngModel)]="cliente" name="cliente" placeholder="Cliente" required>
+    </div>
+
+    <div class="itens">
+      @for (item of itens(); track $index) {
+        <div class="item-row">
+          <input
+            [ngModel]="item.produto_codigo"
+            (ngModelChange)="atualizarProduto($index, $event)"
+            name="produtoCodigo{{ $index }}"
+            placeholder="Código do produto"
+            required>
+          <input
+            [ngModel]="item.quantidade"
+            (ngModelChange)="atualizarQuantidade($index, $event)"
+            name="quantidade{{ $index }}"
+            type="number"
+            min="1"
+            placeholder="Quantidade"
+            required>
+          @if (itens().length > 1) {
+            <button type="button" class="btn-excluir" (click)="removerItem($index)">Remover</button>
+          }
+        </div>
+      }
+    </div>
+
+    <div class="acoes-form">
+      <button type="button" class="btn-secundario" (click)="adicionarItem()">+ Adicionar produto</button>
+      <button type="submit">Emitir nota fiscal</button>
+    </div>
   </form>
 
   <table>
@@ -20,6 +48,7 @@
         <th>Cliente</th>
         <th>Itens</th>
         <th>Status</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
@@ -29,12 +58,28 @@
           <td>{{ nota.cliente }}</td>
           <td>
             @for (item of nota.itens; track item.produto_codigo) {
-              {{ item.produto_codigo }} x{{ item.quantidade }}
+              <span class="item-badge">{{ item.produto_codigo }} x{{ item.quantidade }}</span>
             }
           </td>
-          <td>{{ nota.status }}</td>
+          <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
+          <td>
+            <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
+          </td>
+        </tr>
+      } @empty {
+        <tr>
+          <td colspan="5" class="vazio">Nenhuma nota fiscal emitida ainda.</td>
         </tr>
       }
     </tbody>
   </table>
+
+  <div class="resumo-ia">
+    <button type="button" class="btn-secundario" (click)="gerarResumo()" [disabled]="carregandoResumo()">
+      {{ carregandoResumo() ? 'Gerando...' : '✨ Gerar resumo com IA' }}
+    </button>
+    @if (resumoIA()) {
+      <p class="texto-resumo">{{ resumoIA() }}</p>
+    }
+  </div>
 </section>
