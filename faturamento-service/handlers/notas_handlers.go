@@ -124,9 +124,11 @@ func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
 	}
 
 	precos := map[string]float64{}
+	descricoes := map[string]string{}
 	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
 		for _, p := range produtos {
 			precos[p.Codigo] = p.Preco
+			descricoes[p.Codigo] = p.Descricao
 		}
 	}
 
@@ -144,11 +146,18 @@ func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
 			continue
 		}
 		for _, item := range nota.Itens {
+			// usa a descricao do produto na agregacao (nao o codigo PROD-XXX),
+			// pra o resumo da IA falar em nomes reais de produto
+			nomeProduto := descricoes[item.ProdutoCodigo]
+			if nomeProduto == "" {
+				nomeProduto = item.ProdutoCodigo
+			}
+
 			valorItem := precos[item.ProdutoCodigo] * float64(item.Quantidade)
 			quantidadeTotal += item.Quantidade
 			valorTotal += valorItem
-			quantidadePorProduto[item.ProdutoCodigo] += item.Quantidade
-			valorPorProduto[item.ProdutoCodigo] += valorItem
+			quantidadePorProduto[nomeProduto] += item.Quantidade
+			valorPorProduto[nomeProduto] += valorItem
 			quantidadePorCliente[nota.Cliente] += item.Quantidade
 			valorPorCliente[nota.Cliente] += valorItem
 		}
