@@ -14,17 +14,18 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 
 ## Funcionalidades
 
-- CRUD de produtos (criar, listar, excluir), com preço.
-- Emissão de nota fiscal com múltiplos produtos por nota.
+- CRUD de produtos (criar, listar, excluir), com preço. Código do produto (`PROD-001`, `PROD-002`...) gerado automaticamente, nunca escolhido pelo usuário.
+- Emissão de nota fiscal com múltiplos produtos por nota. Número da nota (`NF-001`, `NF-002`...) também gerado automaticamente, do mesmo jeito que numeração fiscal funciona na vida real.
+- Reprocessamento de notas que falharam, com um clique, sem precisar recriar nada.
 - Download da nota fiscal em PDF.
 - Resumo de insights de vendas gerado por IA (quantidade/valor vendido por produto e por cliente, no estilo do painel de insights da Korp), a partir de dados reais das notas emitidas.
 - Cenário de falha com recuperação automática (ver seção abaixo).
 
 ## Arquitetura e tratamento de falha
 
-A emissão de uma nota fiscal segue um fluxo de três etapas, inspirado no padrão Saga:
+A emissão de uma nota fiscal (`POST /notas`) segue um fluxo de três etapas, inspirado no padrão Saga:
 
-1. O `faturamento-service` grava a nota com status `pendente`.
+1. O `faturamento-service` grava a nota com número sequencial gerado automaticamente e status `pendente`.
 2. Chama `POST /reservas` no `estoque-service`, que valida o saldo e desconta o estoque dentro de uma transação com `SELECT ... FOR UPDATE` (trava a linha do produto até a transação terminar, evitando que duas reservas concorrentes deixem o saldo inconsistente).
 3. Se a reserva deu certo, chama `POST /reservas/{chave}/confirmar`. Se der certo, a nota vira `emitida`.
 
@@ -32,9 +33,9 @@ Se o `estoque-service` estiver fora do ar ou recusar a reserva (saldo insuficien
 
 Se a reserva foi feita mas a confirmação falhar depois (por exemplo, o `estoque-service` cair nesse intervalo), o `faturamento-service` chama `POST /reservas/{chave}/cancelar`, que devolve o saldo reservado. Essa é a ação de compensação do padrão Saga.
 
-Todo o fluxo é idempotente pela `chave` da nota: reenviar a mesma requisição para uma nota que já está `emitida` simplesmente devolve a nota existente, e uma nota que ficou `falha` pode ser reprocessada com segurança sem duplicar a reserva.
+Uma nota que ficou `falha` pode ser reprocessada a qualquer momento via `POST /notas/{chave}/reprocessar`, que reaproveita o mesmo número e os mesmos itens (nenhuma nota nova é criada) e roda o mesmo fluxo de reservar/confirmar de novo. Se a nota já estiver `emitida`, o reprocessamento simplesmente devolve ela como está, sem duplicar a reserva.
 
-As chamadas HTTP do `faturamento-service` para o `estoque-service` (reservar/confirmar/cancelar) têm retry com backoff exponencial (3 tentativas, 200ms/400ms/800ms, timeout de 2s por tentativa) para falhas de rede — uma indisponibilidade momentânea não precisa virar falha na hora. Recusas de regra de negócio (ex: saldo insuficiente) não são reprocessadas, já que tentar de novo não muda o resultado.
+As chamadas HTTP do `faturamento-service` para o `estoque-service` (reservar/confirmar/cancelar) têm retry com backoff exponencial (3 tentativas, 200ms/400ms/800ms, timeout de 2s por tentativa) para falhas de rede — uma indisponibilidade momentânea não precisa virar falha na hora. Recusas de regra de negócio (ex: saldo insuficiente) não são reprocessadas automaticamente, já que tentar de novo não muda o resultado.
 
 ## Como rodar
 
@@ -61,13 +62,15 @@ Acesse `http://localhost:4200` para usar a interface.
 docker compose stop estoque-service
 
 # tenta emitir uma nota (vai falhar apos as tentativas de retry, nota fica "falha")
-curl -X POST http://localhost:8082/notas -H "Content-Type: application/json" -d '{"chave":"nf-teste","cliente":"Cliente","itens":[{"produto_codigo":"P001","quantidade":1}]}'
+# anote o "chave" (ex: "NF-003") que vem na resposta de erro/na listagem
+curl -X POST http://localhost:8082/notas -H "Content-Type: application/json" -d '{"cliente":"Cliente","itens":[{"produto_codigo":"PROD-001","quantidade":1}]}'
+curl http://localhost:8082/notas
 
 # sobe o estoque-service de novo
 docker compose start estoque-service
 
-# reenvia a mesma nota (agora emite com sucesso)
-curl -X POST http://localhost:8082/notas -H "Content-Type: application/json" -d '{"chave":"nf-teste","cliente":"Cliente","itens":[{"produto_codigo":"P001","quantidade":1}]}'
+# reprocessa a mesma nota pelo numero dela (agora emite com sucesso)
+curl -X POST http://localhost:8082/notas/NF-003/reprocessar
 ```
 
 ## Testes automatizados
@@ -86,7 +89,7 @@ Um workflow do GitHub Actions (`.github/workflows/ci.yml`) roda essa mesma suít
 ### Frontend (Angular)
 
 - **Lifecycle hooks**: `ngOnInit` é usado nos dois componentes principais (`Produtos` e `Notas`) para disparar a busca inicial de dados assim que o componente é criado.
-- **RxJS**: o `HttpClient` do Angular devolve `Observable` em cada chamada (`listar`, `criar`, `emitir`, `resumo`). Os componentes assinam esses Observables com `.subscribe({ next, error })`, tratando separadamente o caminho de sucesso e o de erro (é assim que a mensagem de falha do backend chega até a tela quando a emissão de uma nota falha).
+- **RxJS**: o `HttpClient` do Angular devolve `Observable` em cada chamada (`listar`, `criar`, `emitir`, `reprocessar`, `resumo`). Os componentes assinam esses Observables com `.subscribe({ next, error })`, tratando separadamente o caminho de sucesso e o de erro (é assim que a mensagem de falha do backend chega até a tela quando a emissão de uma nota falha).
 - **Signals**: o projeto foi gerado pelo Angular CLI (v21) sem `zone.js`, ou seja, roda em modo zoneless. Nesse modo, atribuir direto a uma propriedade normal da classe dentro de um `.subscribe()` não notifica a detecção de mudanças. Por isso o estado dos componentes (`produtos`, `notas`, `erro`, `resumoIA`, `itens`) é guardado em `signal()`, que é a primitiva reativa que funciona corretamente sem `zone.js`.
 - **Outras bibliotecas**: `FormsModule` (`[(ngModel)]`) para os formulários, com two-way binding simples em vez de Reactive Forms; `CurrencyPipe` para formatar preços.
 
@@ -102,7 +105,7 @@ O `Reservar` do `estoque-service` roda dentro de uma transação com `SELECT ...
 
 ### Idempotência
 
-Tanto a reserva de estoque quanto a nota fiscal usam uma `chave` como identificador único (chave primária no banco). Reenviar a mesma requisição de emissão com a mesma chave não duplica nada: se a nota já está `emitida`, o sistema devolve ela como está; se está `falha`, o sistema tenta o fluxo de novo a partir do mesmo registro, sem recriar a nota do zero.
+Tanto a reserva de estoque quanto a nota fiscal usam uma `chave` como identificador único (chave primária no banco, gerada automaticamente e sequencial). `POST /notas` sempre cria uma nota nova; reprocessar uma nota existente é uma ação separada (`POST /notas/{chave}/reprocessar`) que nunca recria o registro: se a nota já está `emitida`, devolve ela como está; se está `falha`, tenta o fluxo de novo a partir do mesmo registro, sem duplicar a reserva.
 
 ### Uso de IA
 
