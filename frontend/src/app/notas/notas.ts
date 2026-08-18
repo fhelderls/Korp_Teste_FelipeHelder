@@ -3,7 +3,6 @@ import { FormsModule } from '@angular/forms';
 import { NotasService } from '../services/notas.service';
 import { ProdutosService } from '../services/produtos.service';
 import { NotaFiscal, ItemNota, CriarRequest } from '../models/nota';
-import { Produto } from '../models/produto';
 
 @Component({
   selector: 'app-notas',
@@ -13,7 +12,7 @@ import { Produto } from '../models/produto';
 })
 export class Notas implements OnInit {
   notas = signal<NotaFiscal[]>([]);
-  produtos = signal<Produto[]>([]);
+  produtos: ProdutosService['produtos'];
   erro = signal('');
   resumoIA = signal('');
   carregandoResumo = signal(false);
@@ -25,13 +24,13 @@ export class Notas implements OnInit {
   constructor(
     private notasService: NotasService,
     private produtosService: ProdutosService
-  ) {}
+  ) {
+    this.produtos = this.produtosService.produtos;
+  }
 
   ngOnInit(): void {
     this.carregar();
-    this.produtosService.listar().subscribe({
-      next: (produtos) => this.produtos.set(produtos)
-    });
+    this.produtosService.carregar();
   }
 
   carregar(): void {

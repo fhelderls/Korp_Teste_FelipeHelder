@@ -30,6 +30,25 @@ func (s *ProdutosStore) Create(produto *models.Produto) error {
 	return err
 }
 
+// Update atualiza descricao, saldo e preco de um produto existente,
+// identificado pelo codigo. Retorna sql.ErrNoRows se o codigo nao existir.
+func (s *ProdutosStore) Update(produto *models.Produto) error {
+	resultado, err := s.db.Exec(`
+		UPDATE produtos SET descricao = $1, saldo = $2, preco = $3
+		WHERE codigo = $4`, produto.Descricao, produto.Saldo, produto.Preco, produto.Codigo)
+	if err != nil {
+		return err
+	}
+	linhas, err := resultado.RowsAffected()
+	if err != nil {
+		return err
+	}
+	if linhas == 0 {
+		return sql.ErrNoRows
+	}
+	return nil
+}
+
 // GetAll retorna todos os produtos cadastrados no banco de dados
 func (s *ProdutosStore) GetAll() ([]models.Produto, error) {
 	rows, err := s.db.Query(`SELECT codigo, descricao, saldo, preco FROM produtos ORDER BY codigo`)

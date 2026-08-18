@@ -11,23 +11,23 @@ import { Produto } from '../models/produto';
   styleUrl: './produtos.css'
 })
 export class Produtos implements OnInit {
-  produtos = signal<Produto[]>([]);
+  produtos: ProdutosService['produtos'];
   erro = signal('');
 
   novoProduto: Produto = { codigo: '', descricao: '', saldo: 0, preco: 0 };
   precoTexto = '';
 
-  constructor(private produtosService: ProdutosService) {}
+  codigoEditando = signal<string | null>(null);
+  edicaoDescricao = '';
+  edicaoSaldo = 0;
+  edicaoPrecoTexto = '';
 
-  ngOnInit(): void {
-    this.carregar();
+  constructor(private produtosService: ProdutosService) {
+    this.produtos = this.produtosService.produtos;
   }
 
-  carregar(): void {
-    this.produtosService.listar().subscribe({
-      next: (produtos) => this.produtos.set(produtos),
-      error: (err) => this.erro.set('Falha ao carregar produtos: ' + err.message)
-    });
+  ngOnInit(): void {
+    this.produtosService.carregar();
   }
 
   criar(): void {
@@ -56,7 +56,7 @@ export class Produtos implements OnInit {
       next: () => {
         this.novoProduto = { codigo: '', descricao: '', saldo: 0, preco: 0 };
         this.precoTexto = '';
-        this.carregar();
+        this.produtosService.carregar();
       },
       error: (err) => this.erro.set('Falha ao criar produto: ' + err.message)
     });
@@ -64,8 +64,53 @@ export class Produtos implements OnInit {
 
   deletar(codigo: string): void {
     this.produtosService.deletar(codigo).subscribe({
-      next: () => this.carregar(),
+      next: () => this.produtosService.carregar(),
       error: (err) => this.erro.set('Falha ao deletar produto: ' + (err.error ?? err.message))
+    });
+  }
+
+  // Edicao inline: usada principalmente pra reajustar o saldo em estoque
+  // sem precisar excluir e recriar o produto.
+  iniciarEdicao(produto: Produto): void {
+    this.erro.set('');
+    this.codigoEditando.set(produto.codigo);
+    this.edicaoDescricao = produto.descricao;
+    this.edicaoSaldo = produto.saldo;
+    this.edicaoPrecoTexto = produto.preco.toFixed(2).replace('.', ',');
+  }
+
+  cancelarEdicao(): void {
+    this.codigoEditando.set(null);
+  }
+
+  salvarEdicao(codigo: string): void {
+    this.erro.set('');
+
+    if (!this.edicaoDescricao?.trim()) {
+      this.erro.set('Preencha a descrição do produto.');
+      return;
+    }
+    if (this.edicaoSaldo === null || this.edicaoSaldo === undefined || isNaN(this.edicaoSaldo) || this.edicaoSaldo < 0) {
+      this.erro.set('Preencha o saldo do produto.');
+      return;
+    }
+    if (!this.edicaoPrecoTexto?.trim()) {
+      this.erro.set('Preencha o preço do produto.');
+      return;
+    }
+    const preco = parseFloat(this.edicaoPrecoTexto.replace(',', '.'));
+    if (isNaN(preco) || preco <= 0) {
+      this.erro.set('Preço precisa ser maior que zero.');
+      return;
+    }
+
+    const produtoAtualizado: Produto = { codigo, descricao: this.edicaoDescricao, saldo: this.edicaoSaldo, preco };
+    this.produtosService.atualizar(codigo, produtoAtualizado).subscribe({
+      next: () => {
+        this.codigoEditando.set(null);
+        this.produtosService.carregar();
+      },
+      error: (err) => this.erro.set('Falha ao atualizar produto: ' + (err.error ?? err.message))
     });
   }
 }

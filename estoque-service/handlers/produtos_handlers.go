@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"database/sql"
 	"encoding/json"
 	"korp-teste/estoque-service/models"
 	"korp-teste/estoque-service/store"
@@ -45,6 +46,44 @@ func (h *ProdutosHandlers) Create(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(produto)
 
+}
+
+// Update atualiza descricao, saldo e preco de um produto existente,
+// identificado pelo codigo na URL. Usado principalmente para reajustar o
+// saldo em estoque sem precisar excluir e recriar o produto.
+func (h *ProdutosHandlers) Update(w http.ResponseWriter, r *http.Request) {
+	codigo := r.PathValue("codigo")
+
+	var produto models.Produto
+	if err := json.NewDecoder(r.Body).Decode(&produto); err != nil {
+		http.Error(w, "corpo da requisicao invalido", http.StatusBadRequest)
+		return
+	}
+
+	if produto.Descricao == "" {
+		http.Error(w, "descricao e obrigatoria", http.StatusBadRequest)
+		return
+	}
+	if produto.Saldo < 0 {
+		http.Error(w, "saldo nao pode ser negativo", http.StatusBadRequest)
+		return
+	}
+	if produto.Preco <= 0 {
+		http.Error(w, "preco e obrigatorio e precisa ser maior que zero", http.StatusBadRequest)
+		return
+	}
+	produto.Codigo = codigo
+
+	if err := h.store.Update(&produto); err == sql.ErrNoRows {
+		http.Error(w, "produto nao encontrado", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-type", "application/json")
+	json.NewEncoder(w).Encode(produto)
 }
 
 // list retorna todos os produtos cadastrados.
