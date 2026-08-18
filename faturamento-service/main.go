@@ -59,6 +59,7 @@ func main() {
 	mux.HandleFunc("GET /notas", notasHandlers.List)
 	mux.HandleFunc("POST /notas", notasHandlers.Criar)
 	mux.HandleFunc("POST /notas/{chave}/imprimir", notasHandlers.Imprimir)
+	mux.HandleFunc("DELETE /notas/{chave}", notasHandlers.Cancelar)
 	mux.HandleFunc("GET /notas/resumo", notasHandlers.Resumo)
 	mux.HandleFunc("GET /notas/relatorio", notasHandlers.Relatorio)
 	mux.HandleFunc("GET /notas/{chave}/pdf", notasHandlers.PDF)

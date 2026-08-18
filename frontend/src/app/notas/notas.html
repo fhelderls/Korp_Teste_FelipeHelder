@@ -71,8 +71,11 @@
           <td>{{ nota.data_emissao ? (nota.data_emissao | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
           <td class="acoes-tabela">
             @if (nota.status === 'Aberta') {
-              <button type="button" class="btn-secundario" (click)="emitir(nota)" [disabled]="emitindo() === nota.chave">
+              <button type="button" class="btn-secundario" (click)="emitir(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
                 {{ emitindo() === nota.chave ? 'Processando...' : 'Emitir' }}
+              </button>
+              <button type="button" class="btn-excluir" (click)="cancelar(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
+                {{ cancelando() === nota.chave ? 'Cancelando...' : 'Cancelar' }}
               </button>
             } @else {
               <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>

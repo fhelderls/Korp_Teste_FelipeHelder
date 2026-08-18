@@ -126,6 +126,40 @@ func (h *NotasHandlers) Imprimir(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(nota)
 }
 
+// Cancelar desiste de uma nota fiscal 'Aberta', liberando a reserva de
+// estoque correspondente e removendo a nota. So funciona em notas
+// 'Aberta' - uma nota 'Fechada' e definitiva, ja foi emitida de verdade
+// e nao pode ser desfeita por aqui.
+func (h *NotasHandlers) Cancelar(w http.ResponseWriter, r *http.Request) {
+	chave := r.PathValue("chave")
+
+	nota, err := h.store.GetByChave(chave)
+	if err == sql.ErrNoRows {
+		http.Error(w, "nota fiscal nao encontrada", http.StatusNotFound)
+		return
+	} else if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	if nota.Status != "Aberta" {
+		http.Error(w, "nota fiscal nao esta aberta, nao pode ser cancelada", http.StatusConflict)
+		return
+	}
+
+	if err := h.estoqueClient.Cancelar(nota.Chave); err != nil {
+		http.Error(w, "nao foi possivel cancelar a nota, falha ao liberar a reserva de estoque: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
+	if err := h.store.Delete(nota.Chave); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
+}
+
 // List retorna todas as notas fiscais cadastradas.
 func (h *NotasHandlers) List(w http.ResponseWriter, r *http.Request) {
 	notas, err := h.store.GetAll()

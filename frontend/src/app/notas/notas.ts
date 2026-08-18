@@ -18,6 +18,7 @@ export class Notas implements OnInit {
   resumoIA = signal('');
   carregandoResumo = signal(false);
   emitindo = signal<string | null>(null);
+  cancelando = signal<string | null>(null);
 
   cliente = '';
   itens = signal<ItemNota[]>([{ produto_codigo: '', quantidade: 1 }]);
@@ -109,6 +110,31 @@ export class Notas implements OnInit {
       error: (err) => {
         this.emitindo.set(null);
         this.erro.set(err.error ?? 'Falha ao emitir nota fiscal');
+        this.carregar();
+      }
+    });
+  }
+
+  // Cancelar desiste de uma nota 'Aberta': libera a reserva de estoque
+  // correspondente e remove a nota. So funciona em notas 'Aberta' - uma
+  // vez emitida (Fechada), a nota e definitiva e nao pode ser cancelada.
+  cancelar(nota: NotaFiscal): void {
+    if (!confirm(`Cancelar a nota ${nota.chave}? O estoque reservado sera liberado e a nota sera removida.`)) {
+      return;
+    }
+
+    this.erro.set('');
+    this.cancelando.set(nota.chave);
+
+    this.notasService.cancelar(nota.chave).subscribe({
+      next: () => {
+        this.cancelando.set(null);
+        this.carregar();
+        this.produtosService.carregar();
+      },
+      error: (err) => {
+        this.cancelando.set(null);
+        this.erro.set(err.error ?? 'Falha ao cancelar nota fiscal');
         this.carregar();
       }
     });

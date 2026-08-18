@@ -23,6 +23,10 @@ export class NotasService {
     return this.http.post<NotaFiscal>(`${this.baseUrl}/notas/${chave}/imprimir`, {});
   }
 
+  cancelar(chave: string): Observable<void> {
+    return this.http.delete<void>(`${this.baseUrl}/notas/${chave}`);
+  }
+
   pdfUrl(chave: string): string {
     return `${this.baseUrl}/notas/${chave}/pdf`;
   }

@@ -98,6 +98,29 @@ func (c *EstoqueClient) Confirmar(chave string) error {
 	return nil
 }
 
+// Cancelar chama POST /reservas/{chave}/cancelar no estoque-service, com
+// o mesmo retry de rede do Reservar. Usado quando uma nota fiscal
+// 'Aberta' e cancelada pelo usuario: libera a reserva de estoque
+// correspondente (que nunca chegou a debitar o saldo, entao so libera,
+// nao devolve nada).
+func (c *EstoqueClient) Cancelar(chave string) error {
+	var resp *http.Response
+	err := comRetry(3, func() error {
+		var errReq error
+		resp, errReq = c.http.Post(c.baseURL+"/reservas/"+chave+"/cancelar", "application/json", nil)
+		return errReq
+	})
+	if err != nil {
+		return fmt.Errorf("falha ao chamar estoque-service: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("estoque-service recusou o cancelamento (status %d)", resp.StatusCode)
+	}
+	return nil
+}
+
 // ProdutoResumo tem so os campos que o faturamento-service precisa dos
 // produtos do estoque-service (preco, para calcular valor de vendas).
 type ProdutoResumo struct {
