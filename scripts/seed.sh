@@ -70,11 +70,13 @@ nota_fechada "Livraria Central" "[{\"produto_codigo\":\"$CANETA_GEL\",\"quantida
 criar_nota "Escola Municipal Sao Jose" "[{\"produto_codigo\":\"$REGUA\",\"quantidade\":45},{\"produto_codigo\":\"$APONTADOR\",\"quantidade\":45}]" > /dev/null
 criar_nota "Distribuidora ABC Papelaria" "[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":5},{\"produto_codigo\":\"$TESOURA\",\"quantidade\":10}]" > /dev/null
 
-# uma nota criada com quantidade maior que o saldo: a CRIACAO funciona
-# normalmente (so registra a intencao, sem checar saldo), mas a tentativa
-# de EMISSAO falha (e ai que o saldo de verdade e conferido) - a nota fica
-# "Aberta", pra testar o cenario de erro ao vivo
-chave_falha=$(criar_nota "Comercio Silva e Filhos" "[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":9999}]")
+# uma nota criada com quantidade maior que o saldo disponivel: a CRIACAO
+# funciona normalmente (so registra a intencao, sem checar saldo), mas a
+# tentativa de EMISSAO falha (e ai que o saldo de verdade e conferido) - a
+# nota fica "Aberta", pra testar o cenario de erro ao vivo. Usa uma
+# quantidade so um pouco maior que o disponivel (nao um numero absurdo),
+# pra saldo_reservado/saldo_disponivel continuarem legiveis na tela.
+chave_falha=$(criar_nota "Comercio Silva e Filhos" "[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":50}]")
 imprimir_nota "$chave_falha" || true
 
 echo "Seed concluido."
