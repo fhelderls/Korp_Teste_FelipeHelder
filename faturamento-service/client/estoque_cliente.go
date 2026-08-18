@@ -129,9 +129,16 @@ type ProdutoResumo struct {
 	Preco     float64 `json:"preco"`
 }
 
-// ListarProdutos chama GET /produtos no estoque-service.
+// ListarProdutos chama GET /produtos no estoque-service, com o mesmo
+// retry de rede do Reservar/Confirmar - uma instabilidade momentanea nao
+// deve fazer a criacao da nota falhar de primeira.
 func (c *EstoqueClient) ListarProdutos() ([]ProdutoResumo, error) {
-	resp, err := c.http.Get(c.baseURL + "/produtos")
+	var resp *http.Response
+	err := comRetry(3, func() error {
+		var errReq error
+		resp, errReq = c.http.Get(c.baseURL + "/produtos")
+		return errReq
+	})
 	if err != nil {
 		return nil, fmt.Errorf("falha ao chamar estoque-service: %w", err)
 	}
