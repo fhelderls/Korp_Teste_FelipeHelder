@@ -19,6 +19,7 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 - Impressão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Debita o saldo dos produtos e muda o status para **Fechada**. Uma nota `Fechada` não pode ser impressa de novo; se a impressão falhar, a nota continua `Aberta` e pode ser reimpressa depois.
 - Download da nota fiscal em PDF (com nome e preço dos produtos, não o código).
 - Resumo de insights de vendas gerado por IA (quantidade/valor vendido por produto e por cliente, no estilo do painel de insights da Korp), a partir de dados reais das notas fechadas.
+- Relatório de faturamento em PDF: totais gerais (notas fechadas/abertas, quantidade e valor vendido) e gráficos de barra de faturamento por produto e por cliente, gerados a partir dos mesmos dados reais usados no resumo de IA.
 - Cenário de falha com recuperação (ver seção abaixo).
 
 ## Arquitetura e tratamento de falha
