@@ -8,6 +8,8 @@ export interface NotaFiscal {
   cliente: string;
   itens: ItemNota[];
   status: string;
+  data_abertura: string;
+  data_emissao: string | null;
 }
 
 // CriarRequest e o que o cliente envia para cadastrar uma nota nova - a

@@ -51,6 +51,8 @@
         <th>Cliente</th>
         <th>Itens</th>
         <th>Status</th>
+        <th>Abertura</th>
+        <th>Emissão</th>
         <th></th>
       </tr>
     </thead>
@@ -65,10 +67,12 @@
             }
           </td>
           <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
+          <td>{{ nota.data_abertura | date:'dd/MM/yyyy HH:mm' }}</td>
+          <td>{{ nota.data_emissao ? (nota.data_emissao | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
           <td class="acoes-tabela">
             @if (nota.status === 'Aberta') {
-              <button type="button" class="btn-secundario" (click)="imprimir(nota)" [disabled]="imprimindo() === nota.chave">
-                {{ imprimindo() === nota.chave ? 'Processando...' : 'Imprimir' }}
+              <button type="button" class="btn-secundario" (click)="emitir(nota)" [disabled]="emitindo() === nota.chave">
+                {{ emitindo() === nota.chave ? 'Processando...' : 'Emitir' }}
               </button>
             } @else {
               <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
@@ -77,7 +81,7 @@
         </tr>
       } @empty {
         <tr>
-          <td colspan="5" class="vazio">Nenhuma nota fiscal cadastrada ainda.</td>
+          <td colspan="7" class="vazio">Nenhuma nota fiscal cadastrada ainda.</td>
         </tr>
       }
     </tbody>

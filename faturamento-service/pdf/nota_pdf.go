@@ -9,6 +9,8 @@ import (
 	"korp-teste/faturamento-service/models"
 )
 
+const layoutData = "02/01/2006 15:04"
+
 // InfoProduto tem os dados do produto necessarios para exibir no PDF
 // (o faturamento-service nao guarda descricao/preco, so o codigo).
 type InfoProduto struct {
@@ -33,6 +35,14 @@ func GerarNotaFiscal(nota models.NotaFiscal, produtos map[string]InfoProduto) ([
 	pdf.Cell(0, 7, fmt.Sprintf("Cliente: %s", nota.Cliente))
 	pdf.Ln(6)
 	pdf.Cell(0, 7, fmt.Sprintf("Status: %s", nota.Status))
+	pdf.Ln(6)
+	pdf.Cell(0, 7, fmt.Sprintf("Data de abertura: %s", nota.DataAbertura.Format(layoutData)))
+	pdf.Ln(6)
+	if nota.DataEmissao != nil {
+		pdf.Cell(0, 7, fmt.Sprintf("Data de emissao: %s", nota.DataEmissao.Format(layoutData)))
+	} else {
+		pdf.Cell(0, 7, "Data de emissao: -")
+	}
 	pdf.Ln(12)
 
 	pdf.SetFont("Arial", "B", 10)

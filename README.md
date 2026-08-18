@@ -7,17 +7,17 @@ Sistema de emissão de notas fiscais construído em arquitetura de microsserviç
 O sistema é dividido em dois microsserviços independentes que se comunicam via HTTP, mais um frontend Angular:
 
 - **estoque-service**: gerencia produtos (código, descrição, saldo, preço) e reservas de estoque.
-- **faturamento-service**: gerencia notas fiscais, orquestra a impressão chamando o estoque-service, gera PDF das notas e um resumo de insights de vendas com IA.
-- **frontend**: interface Angular para cadastrar/excluir produtos e cadastrar/imprimir notas fiscais com múltiplos itens.
+- **faturamento-service**: gerencia notas fiscais, orquestra a emissão chamando o estoque-service, gera PDF das notas e um resumo de insights de vendas com IA.
+- **frontend**: interface Angular para cadastrar/editar/excluir produtos e cadastrar/emitir notas fiscais com múltiplos itens.
 
 Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `faturamento`), rodando na mesma instância do Postgres mas isolados em bancos separados.
 
 ## Funcionalidades
 
 - CRUD de produtos (criar, listar, editar, excluir), com preço. Código do produto (`PROD-001`, `PROD-002`...) gerado automaticamente, nunca escolhido pelo usuário. A edição serve principalmente para reajustar o saldo em estoque sem precisar excluir e recriar o produto.
-- Cadastro de nota fiscal com múltiplos produtos (escolhidos pela descrição, não pelo código). Número da nota (`NF-001`, `NF-002`...) gerado automaticamente. Nasce com status **Aberta**.
-- Impressão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Debita o saldo dos produtos e muda o status para **Fechada**. Uma nota `Fechada` não pode ser impressa de novo; se a impressão falhar, a nota continua `Aberta` e pode ser reimpressa depois.
-- Download da nota fiscal em PDF (com nome e preço dos produtos, não o código).
+- Cadastro de nota fiscal com múltiplos produtos (escolhidos pela descrição, não pelo código). Número da nota (`NF-001`, `NF-002`...) gerado automaticamente. Nasce com status **Aberta** e data de abertura registrada.
+- Emissão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Debita o saldo dos produtos, muda o status para **Fechada** e grava a data de emissão. Uma nota `Fechada` não pode ser emitida de novo; se a emissão falhar, a nota continua `Aberta` (sem data de emissão) e pode ser emitida de novo depois.
+- Download da nota fiscal em PDF (com nome e preço dos produtos, não o código, e as datas de abertura e emissão).
 - Resumo de insights de vendas gerado por IA (quantidade/valor vendido por produto e por cliente, no estilo do painel de insights da Korp), a partir de dados reais das notas fechadas.
 - Relatório de faturamento em PDF (estilo dashboard): cabeçalho com data de geração, cartões de indicadores (notas fechadas/abertas, ticket médio, clientes atendidos), destaques de produto e cliente com maior faturamento, gráficos de pizza com a participação percentual no faturamento por produto e por cliente, e gráficos de barra com a quantidade vendida por produto e por cliente — tudo a partir dos mesmos dados reais usados no resumo de IA.
 - Cenário de falha com recuperação (ver seção abaixo).
@@ -26,13 +26,13 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 
 Cadastrar uma nota fiscal (`POST /notas`) é uma operação simples: o `faturamento-service` grava a nota com número sequencial gerado automaticamente e status `Aberta`. Nada é reservado no estoque nesse momento.
 
-A impressão (`POST /notas/{chave}/imprimir`) é a ação que processa a nota de verdade, em três etapas inspiradas no padrão Saga:
+A emissão (`POST /notas/{chave}/imprimir`) é a ação que processa a nota de verdade, em três etapas inspiradas no padrão Saga:
 
-1. Confere que a nota está `Aberta` (uma nota `Fechada` não pode ser impressa de novo).
+1. Confere que a nota está `Aberta` (uma nota `Fechada` não pode ser emitida de novo).
 2. Chama `POST /reservas` no `estoque-service`, que valida o saldo e desconta o estoque dentro de uma transação com `SELECT ... FOR UPDATE` (trava a linha do produto até a transação terminar, evitando que duas reservas concorrentes deixem o saldo inconsistente).
-3. Se a reserva deu certo, chama `POST /reservas/{chave}/confirmar`. Se der certo, a nota vira `Fechada`.
+3. Se a reserva deu certo, chama `POST /reservas/{chave}/confirmar`. Se der certo, a nota vira `Fechada` e grava a data de emissão.
 
-Se o `estoque-service` estiver fora do ar ou recusar a reserva (saldo insuficiente), a impressão falha, a nota **continua `Aberta`** (nada muda), e o erro é devolvido ao usuário de forma clara. Não existe um status de "falha" separado: uma nota que não foi impressa com sucesso simplesmente segue `Aberta`, e o usuário pode clicar em Imprimir de novo quando quiser — essa é a própria forma de reprocessar, sem precisar de uma ação especial.
+Se o `estoque-service` estiver fora do ar ou recusar a reserva (saldo insuficiente), a emissão falha, a nota **continua `Aberta`** (nada muda, sem data de emissão), e o erro é devolvido ao usuário de forma clara. Não existe um status de "falha" separado: uma nota que não foi emitida com sucesso simplesmente segue `Aberta`, e o usuário pode clicar em Emitir de novo quando quiser — essa é a própria forma de reprocessar, sem precisar de uma ação especial.
 
 Se a reserva foi feita mas a confirmação falhar depois (por exemplo, o `estoque-service` cair nesse intervalo), o `faturamento-service` chama `POST /reservas/{chave}/cancelar`, que devolve o saldo reservado. Essa é a ação de compensação do padrão Saga.
 
@@ -74,13 +74,13 @@ curl -X POST http://localhost:8082/notas -H "Content-Type: application/json" -d 
 # derruba o estoque-service
 docker compose stop estoque-service
 
-# tenta imprimir (vai falhar apos as tentativas de retry, nota continua "Aberta")
+# tenta emitir (vai falhar apos as tentativas de retry, nota continua "Aberta")
 curl -X POST http://localhost:8082/notas/NF-003/imprimir
 
 # sobe o estoque-service de novo
 docker compose start estoque-service
 
-# imprime de novo (agora fecha com sucesso)
+# emite de novo (agora fecha com sucesso)
 curl -X POST http://localhost:8082/notas/NF-003/imprimir
 ```
 
@@ -100,8 +100,8 @@ Um workflow do GitHub Actions (`.github/workflows/ci.yml`) roda essa mesma suít
 ### Frontend (Angular)
 
 - **Lifecycle hooks**: `ngOnInit` é usado nos dois componentes principais (`Produtos` e `Notas`) para disparar a busca inicial de dados assim que o componente é criado.
-- **RxJS**: o `HttpClient` do Angular devolve `Observable` em cada chamada (`listar`, `criar`, `imprimir`, `resumo`). Os componentes assinam esses Observables com `.subscribe({ next, error })`, tratando separadamente o caminho de sucesso e o de erro (é assim que a mensagem de falha do backend chega até a tela quando a impressão de uma nota falha, e que o indicador de "Processando..." é controlado durante a chamada).
-- **Signals**: o projeto foi gerado pelo Angular CLI (v21) sem `zone.js`, ou seja, roda em modo zoneless. Nesse modo, atribuir direto a uma propriedade normal da classe dentro de um `.subscribe()` não notifica a detecção de mudanças. Por isso o estado dos componentes (`produtos`, `notas`, `erro`, `resumoIA`, `itens`, `imprimindo`) é guardado em `signal()`, que é a primitiva reativa que funciona corretamente sem `zone.js`.
+- **RxJS**: o `HttpClient` do Angular devolve `Observable` em cada chamada (`listar`, `criar`, `emitir`, `resumo`). Os componentes assinam esses Observables com `.subscribe({ next, error })`, tratando separadamente o caminho de sucesso e o de erro (é assim que a mensagem de falha do backend chega até a tela quando a emissão de uma nota falha, e que o indicador de "Processando..." é controlado durante a chamada).
+- **Signals**: o projeto foi gerado pelo Angular CLI (v21) sem `zone.js`, ou seja, roda em modo zoneless. Nesse modo, atribuir direto a uma propriedade normal da classe dentro de um `.subscribe()` não notifica a detecção de mudanças. Por isso o estado dos componentes (`produtos`, `notas`, `erro`, `resumoIA`, `itens`, `emitindo`) é guardado em `signal()`, que é a primitiva reativa que funciona corretamente sem `zone.js`. A lista de produtos vive como `signal` compartilhado no `ProdutosService` (não duplicada em cada componente), para telas diferentes ficarem sincronizadas sem precisar recarregar a página.
 - **Outras bibliotecas**: `FormsModule` (`[(ngModel)]`) para os formulários, com two-way binding simples em vez de Reactive Forms; `CurrencyPipe` para formatar preços. Os itens da nota usam um `<select>` com a descrição dos produtos (carregados do `estoque-service`), não o código.
 - **Componentes visuais**: nenhuma biblioteca de UI (sem Angular Material, Bootstrap etc.). CSS puro, escrito à mão, com um pequeno design system compartilhado em `styles.css` (cards, tabelas, badges de status, botões).
 
@@ -109,15 +109,15 @@ Um workflow do GitHub Actions (`.github/workflows/ci.yml`) roda essa mesma suít
 
 - **Gerenciamento de dependências**: Go Modules (`go.mod`/`go.sum`), nativo da linguagem. Cada microsserviço é um módulo Go independente, com suas próprias dependências.
 - **Frameworks e bibliotecas**: nenhum framework web externo. As rotas HTTP usam `net/http` da biblioteca padrão, aproveitando o roteador nativo (`http.ServeMux`) com suporte a método + padrão de caminho (`"POST /notas/{chave}/imprimir"`), disponível desde o Go 1.22. Para o banco, o driver `github.com/jackc/pgx/v5/stdlib`, usado através da interface padrão `database/sql`. Para o PDF, `github.com/go-pdf/fpdf`.
-- **Tratamento de erros**: erros são retornados como valores (padrão idiomático do Go), envolvidos com contexto usando `fmt.Errorf` e `%w` a cada camada. Nos handlers HTTP, cada erro vira uma resposta com o status apropriado (`400` para requisição inválida, `404` para recurso não encontrado, `409` para conflito de regra de negócio como tentar reimprimir uma nota fechada, `503` para falha de comunicação entre serviços), sempre com uma mensagem legível no corpo, nunca um erro genérico.
+- **Tratamento de erros**: erros são retornados como valores (padrão idiomático do Go), envolvidos com contexto usando `fmt.Errorf` e `%w` a cada camada. Nos handlers HTTP, cada erro vira uma resposta com o status apropriado (`400` para requisição inválida, `404` para recurso não encontrado, `409` para conflito de regra de negócio como tentar emitir de novo uma nota já fechada, `503` para falha de comunicação entre serviços), sempre com uma mensagem legível no corpo, nunca um erro genérico.
 
 ### Concorrência
 
-O `Reservar` do `estoque-service` roda dentro de uma transação com `SELECT ... FOR UPDATE` na linha do produto. Isso trava a linha durante a transação, garantindo que duas reservas concorrentes para o mesmo produto sejam processadas em sequência, não em paralelo, evitando que o saldo fique inconsistente (ex: duas notas tentando imprimir ao mesmo tempo o último item em estoque).
+O `Reservar` do `estoque-service` roda dentro de uma transação com `SELECT ... FOR UPDATE` na linha do produto. Isso trava a linha durante a transação, garantindo que duas reservas concorrentes para o mesmo produto sejam processadas em sequência, não em paralelo, evitando que o saldo fique inconsistente (ex: duas notas tentando emitir ao mesmo tempo o último item em estoque).
 
 ### Idempotência
 
-Tanto a reserva de estoque quanto a nota fiscal usam uma `chave`/número como identificador único (chave primária no banco, gerada automaticamente e sequencial). `POST /notas` sempre cria uma nota nova; imprimir é uma ação separada (`POST /notas/{chave}/imprimir`) que nunca recria nada: só funciona em notas `Aberta`, e uma nota `Fechada` recusa ser impressa de novo (evita debitar o estoque duas vezes pela mesma nota).
+Tanto a reserva de estoque quanto a nota fiscal usam uma `chave`/número como identificador único (chave primária no banco, gerada automaticamente e sequencial). `POST /notas` sempre cria uma nota nova; emitir é uma ação separada (`POST /notas/{chave}/imprimir`) que nunca recria nada: só funciona em notas `Aberta`, e uma nota `Fechada` recusa ser emitida de novo (evita debitar o estoque duas vezes pela mesma nota).
 
 ### Uso de IA
 

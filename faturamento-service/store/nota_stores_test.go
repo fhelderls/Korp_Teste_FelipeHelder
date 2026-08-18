@@ -58,9 +58,15 @@ func TestCreate_GetByChave(t *testing.T) {
 	if len(encontrada.Itens) != 1 || encontrada.Itens[0].ProdutoCodigo != "P001" {
 		t.Errorf("itens nao vieram como esperado: %+v", encontrada.Itens)
 	}
+	if encontrada.DataAbertura.IsZero() {
+		t.Error("DataAbertura deveria ter sido preenchida na criacao")
+	}
+	if encontrada.DataEmissao != nil {
+		t.Error("DataEmissao deveria ser nula antes da emissao")
+	}
 }
 
-func TestAtualizarStatus(t *testing.T) {
+func TestMarcarEmitida(t *testing.T) {
 	store := NewNotasStore(testDB)
 
 	nota := &models.NotaFiscal{
@@ -72,8 +78,12 @@ func TestAtualizarStatus(t *testing.T) {
 	}
 	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, nota.Chave)
 
-	if err := store.AtualizarStatus(nota.Chave, "Fechada"); err != nil {
-		t.Fatalf("AtualizarStatus retornou erro inesperado: %v", err)
+	dataEmissao, err := store.MarcarEmitida(nota.Chave)
+	if err != nil {
+		t.Fatalf("MarcarEmitida retornou erro inesperado: %v", err)
+	}
+	if dataEmissao.IsZero() {
+		t.Error("MarcarEmitida deveria ter retornado a data de emissao")
 	}
 
 	encontrada, err := store.GetByChave(nota.Chave)
@@ -82,6 +92,9 @@ func TestAtualizarStatus(t *testing.T) {
 	}
 	if encontrada.Status != "Fechada" {
 		t.Errorf("status esperado 'Fechada', obtido %q", encontrada.Status)
+	}
+	if encontrada.DataEmissao == nil {
+		t.Error("DataEmissao deveria ter sido preenchida apos a emissao")
 	}
 }
 

@@ -19,7 +19,7 @@ export class NotasService {
     return this.http.post<NotaFiscal>(`${this.baseUrl}/notas`, nota);
   }
 
-  imprimir(chave: string): Observable<NotaFiscal> {
+  emitir(chave: string): Observable<NotaFiscal> {
     return this.http.post<NotaFiscal>(`${this.baseUrl}/notas/${chave}/imprimir`, {});
   }
 

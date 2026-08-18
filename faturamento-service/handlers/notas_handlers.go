@@ -106,11 +106,13 @@ func (h *NotasHandlers) Imprimir(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := h.store.AtualizarStatus(nota.Chave, "Fechada"); err != nil {
+	dataEmissao, err := h.store.MarcarEmitida(nota.Chave)
+	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 	nota.Status = "Fechada"
+	nota.DataEmissao = &dataEmissao
 
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusOK)

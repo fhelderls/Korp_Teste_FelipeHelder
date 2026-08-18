@@ -38,6 +38,12 @@ func InitSchema(db *sql.DB) error {
 		return err
 	}
 
+	// data_emissao so e preenchida quando a nota e impressa com sucesso
+	// (vira 'Fechada'); fica nula enquanto a nota estiver 'Aberta'.
+	if _, err := db.Exec(`ALTER TABLE notas ADD COLUMN IF NOT EXISTS data_emissao TIMESTAMP`); err != nil {
+		return err
+	}
+
 	// sequencia usada para gerar o numero da nota fiscal automaticamente (NF-001, NF-002...)
 	_, err = db.Exec(`CREATE SEQUENCE IF NOT EXISTS notas_numero_seq START 1`)
 	return err

@@ -1,12 +1,13 @@
 import { Component, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { DatePipe } from '@angular/common';
 import { NotasService } from '../services/notas.service';
 import { ProdutosService } from '../services/produtos.service';
 import { NotaFiscal, ItemNota, CriarRequest } from '../models/nota';
 
 @Component({
   selector: 'app-notas',
-  imports: [FormsModule],
+  imports: [FormsModule, DatePipe],
   templateUrl: './notas.html',
   styleUrl: './notas.css'
 })
@@ -16,7 +17,7 @@ export class Notas implements OnInit {
   erro = signal('');
   resumoIA = signal('');
   carregandoResumo = signal(false);
-  imprimindo = signal<string | null>(null);
+  emitindo = signal<string | null>(null);
 
   cliente = '';
   itens = signal<ItemNota[]>([{ produto_codigo: '', quantidade: 1 }]);
@@ -91,23 +92,23 @@ export class Notas implements OnInit {
     });
   }
 
-  // Imprimir e a acao que de fato debita o estoque e fecha a nota. So
+  // Emitir e a acao que de fato debita o estoque e fecha a nota. So
   // funciona em notas 'Aberta'; se falhar, a nota continua 'Aberta' e o
-  // usuario pode clicar em Imprimir de novo.
-  imprimir(nota: NotaFiscal): void {
+  // usuario pode clicar em Emitir de novo.
+  emitir(nota: NotaFiscal): void {
     this.erro.set('');
-    this.imprimindo.set(nota.chave);
+    this.emitindo.set(nota.chave);
 
-    this.notasService.imprimir(nota.chave).subscribe({
+    this.notasService.emitir(nota.chave).subscribe({
       next: () => {
-        this.imprimindo.set(null);
+        this.emitindo.set(null);
         this.carregar();
         this.produtosService.carregar();
         window.open(this.notasService.pdfUrl(nota.chave), '_blank');
       },
       error: (err) => {
-        this.imprimindo.set(null);
-        this.erro.set(err.error ?? 'Falha ao imprimir nota fiscal');
+        this.emitindo.set(null);
+        this.erro.set(err.error ?? 'Falha ao emitir nota fiscal');
         this.carregar();
       }
     });
