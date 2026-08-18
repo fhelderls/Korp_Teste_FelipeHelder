@@ -44,51 +44,53 @@
     </div>
   </form>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Chave</th>
-        <th>Cliente</th>
-        <th>Itens</th>
-        <th>Status</th>
-        <th>Abertura</th>
-        <th>Emissão</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (nota of notas(); track nota.chave) {
+  <div class="tabela-scroll">
+    <table>
+      <thead>
         <tr>
-          <td>{{ nota.chave }}</td>
-          <td>{{ nota.cliente }}</td>
-          <td>
-            @for (item of nota.itens; track item.produto_codigo) {
-              <span class="item-badge">{{ item.descricao || item.produto_codigo }} x{{ item.quantidade }}</span>
-            }
-          </td>
-          <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
-          <td>{{ nota.data_abertura | date:'dd/MM/yyyy HH:mm' }}</td>
-          <td>{{ nota.data_emissao ? (nota.data_emissao | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
-          <td class="acoes-tabela">
-            @if (nota.status === 'Aberta') {
-              <button type="button" class="btn-secundario" (click)="emitir(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
-                {{ emitindo() === nota.chave ? 'Processando...' : 'Emitir' }}
-              </button>
-              <button type="button" class="btn-excluir" (click)="cancelar(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
-                {{ cancelando() === nota.chave ? 'Cancelando...' : 'Cancelar' }}
-              </button>
-            } @else {
-              <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
-            }
-          </td>
+          <th>Chave</th>
+          <th>Cliente</th>
+          <th>Itens</th>
+          <th>Status</th>
+          <th>Abertura</th>
+          <th>Emissão</th>
+          <th></th>
         </tr>
-      } @empty {
-        <tr>
-          <td colspan="7" class="vazio">Nenhuma nota fiscal cadastrada ainda.</td>
-        </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (nota of notas(); track nota.chave) {
+          <tr>
+            <td>{{ nota.chave }}</td>
+            <td>{{ nota.cliente }}</td>
+            <td>
+              @for (item of nota.itens; track item.produto_codigo) {
+                <span class="item-badge">{{ item.descricao || item.produto_codigo }} x{{ item.quantidade }}</span>
+              }
+            </td>
+            <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
+            <td>{{ nota.data_abertura | date:'dd/MM/yyyy HH:mm' }}</td>
+            <td>{{ nota.data_emissao ? (nota.data_emissao | date:'dd/MM/yyyy HH:mm') : '—' }}</td>
+            <td class="acoes-tabela">
+              @if (nota.status === 'Aberta') {
+                <button type="button" class="btn-secundario" (click)="emitir(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
+                  {{ emitindo() === nota.chave ? 'Processando...' : 'Emitir' }}
+                </button>
+                <button type="button" class="btn-excluir" (click)="cancelar(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
+                  {{ cancelando() === nota.chave ? 'Cancelando...' : 'Cancelar' }}
+                </button>
+              } @else {
+                <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
+              }
+            </td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="vazio">Nenhuma nota fiscal cadastrada ainda.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
 
   <div class="resumo-ia">
     <button type="button" class="btn-secundario" (click)="gerarResumo()" [disabled]="carregandoResumo()">

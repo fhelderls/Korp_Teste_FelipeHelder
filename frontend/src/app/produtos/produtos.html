@@ -12,49 +12,51 @@
     <button type="submit">Criar produto</button>
   </form>
 
-  <table>
-    <thead>
-      <tr>
-        <th>Código</th>
-        <th>Descrição</th>
-        <th>Saldo total</th>
-        <th>Reservado</th>
-        <th>Disponível</th>
-        <th>Preço</th>
-        <th></th>
-      </tr>
-    </thead>
-    <tbody>
-      @for (produto of produtos(); track produto.codigo) {
+  <div class="tabela-scroll">
+    <table>
+      <thead>
         <tr>
-          <td>{{ produto.codigo }}</td>
-          @if (codigoEditando() === produto.codigo) {
-            <td><input [(ngModel)]="edicaoDescricao" name="edicaoDescricao{{ produto.codigo }}"></td>
-            <td><input [(ngModel)]="edicaoSaldo" name="edicaoSaldo{{ produto.codigo }}" type="number"></td>
-            <td>{{ produto.saldo_reservado }}</td>
-            <td>{{ produto.saldo_disponivel }}</td>
-            <td><input [(ngModel)]="edicaoPrecoTexto" name="edicaoPreco{{ produto.codigo }}" type="text" inputmode="decimal"></td>
-            <td class="acoes-tabela">
-              <button type="button" class="btn-secundario" (click)="salvarEdicao(produto.codigo)">Salvar</button>
-              <button type="button" class="btn-secundario" (click)="cancelarEdicao()">Cancelar</button>
-            </td>
-          } @else {
-            <td>{{ produto.descricao }}</td>
-            <td>{{ produto.saldo }}</td>
-            <td>{{ produto.saldo_reservado }}</td>
-            <td>{{ produto.saldo_disponivel }}</td>
-            <td>{{ produto.preco | currency:'BRL' }}</td>
-            <td class="acoes-tabela">
-              <button type="button" class="btn-secundario" (click)="iniciarEdicao(produto)">Editar</button>
-              <button type="button" class="btn-excluir" (click)="deletar(produto.codigo)">Excluir</button>
-            </td>
-          }
+          <th>Código</th>
+          <th>Descrição</th>
+          <th>Saldo total</th>
+          <th>Reservado</th>
+          <th>Disponível</th>
+          <th>Preço</th>
+          <th></th>
         </tr>
-      } @empty {
-        <tr>
-          <td colspan="7" class="vazio">Nenhum produto cadastrado ainda.</td>
-        </tr>
-      }
-    </tbody>
-  </table>
+      </thead>
+      <tbody>
+        @for (produto of produtos(); track produto.codigo) {
+          <tr>
+            <td>{{ produto.codigo }}</td>
+            @if (codigoEditando() === produto.codigo) {
+              <td><input [(ngModel)]="edicaoDescricao" name="edicaoDescricao{{ produto.codigo }}"></td>
+              <td><input [(ngModel)]="edicaoSaldo" name="edicaoSaldo{{ produto.codigo }}" type="number"></td>
+              <td>{{ produto.saldo_reservado }}</td>
+              <td>{{ produto.saldo_disponivel }}</td>
+              <td><input [(ngModel)]="edicaoPrecoTexto" name="edicaoPreco{{ produto.codigo }}" type="text" inputmode="decimal"></td>
+              <td class="acoes-tabela">
+                <button type="button" class="btn-secundario" (click)="salvarEdicao(produto.codigo)">Salvar</button>
+                <button type="button" class="btn-secundario" (click)="cancelarEdicao()">Cancelar</button>
+              </td>
+            } @else {
+              <td>{{ produto.descricao }}</td>
+              <td>{{ produto.saldo }}</td>
+              <td>{{ produto.saldo_reservado }}</td>
+              <td>{{ produto.saldo_disponivel }}</td>
+              <td>{{ produto.preco | currency:'BRL' }}</td>
+              <td class="acoes-tabela">
+                <button type="button" class="btn-secundario" (click)="iniciarEdicao(produto)">Editar</button>
+                <button type="button" class="btn-excluir" (click)="deletar(produto.codigo)">Excluir</button>
+              </td>
+            }
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="vazio">Nenhum produto cadastrado ainda.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
 </section>
