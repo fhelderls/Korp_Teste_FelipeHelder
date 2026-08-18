@@ -36,7 +36,7 @@ func TestCreate_GetByChave(t *testing.T) {
 
 	nota := &models.NotaFiscal{
 		Cliente: "Cliente Teste",
-		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 2}},
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 2, Descricao: "Produto Teste", PrecoUnitario: 9.9}},
 	}
 	if err := store.Create(nota); err != nil {
 		t.Fatalf("Create retornou erro inesperado: %v", err)
@@ -57,6 +57,11 @@ func TestCreate_GetByChave(t *testing.T) {
 	}
 	if len(encontrada.Itens) != 1 || encontrada.Itens[0].ProdutoCodigo != "P001" {
 		t.Errorf("itens nao vieram como esperado: %+v", encontrada.Itens)
+	}
+	// descricao e preco sao um retrato do produto gravado com a nota - tem
+	// que sobreviver ao round-trip de serializacao/persistencia
+	if encontrada.Itens[0].Descricao != "Produto Teste" || encontrada.Itens[0].PrecoUnitario != 9.9 {
+		t.Errorf("descricao/preco do item nao foram preservados: %+v", encontrada.Itens[0])
 	}
 	if encontrada.DataAbertura.IsZero() {
 		t.Error("DataAbertura deveria ter sido preenchida na criacao")

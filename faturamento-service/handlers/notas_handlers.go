@@ -35,6 +35,11 @@ type criarRequest struct {
 // disputa por estoque so e resolvida de fato na emissao. Se o
 // estoque-service estiver fora do ar e a reserva nao puder nem ser
 // registrada, a criacao da nota inteira e desfeita.
+//
+// A descricao e o preco de cada item sao um retrato do produto nesse
+// momento, gravados junto com a nota: uma nota fiscal e um documento
+// historico, e nao pode mudar (ou ficar com o codigo sem descricao)
+// se o produto for editado ou excluido depois.
 func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 	var req criarRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -61,9 +66,34 @@ func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	produtosDisponiveis, err := h.estoqueClient.ListarProdutos()
+	if err != nil {
+		http.Error(w, "nao foi possivel criar a nota, falha ao consultar os produtos: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+	produtosPorCodigo := map[string]client.ProdutoResumo{}
+	for _, p := range produtosDisponiveis {
+		produtosPorCodigo[p.Codigo] = p
+	}
+
+	itens := make([]models.ItemNota, len(req.Itens))
+	for i, item := range req.Itens {
+		produto, existe := produtosPorCodigo[item.ProdutoCodigo]
+		if !existe {
+			http.Error(w, "produto "+item.ProdutoCodigo+" nao encontrado", http.StatusBadRequest)
+			return
+		}
+		itens[i] = models.ItemNota{
+			ProdutoCodigo: item.ProdutoCodigo,
+			Quantidade:    item.Quantidade,
+			Descricao:     produto.Descricao,
+			PrecoUnitario: produto.Preco,
+		}
+	}
+
 	nota := models.NotaFiscal{
 		Cliente: req.Cliente,
-		Itens:   req.Itens,
+		Itens:   itens,
 	}
 	if err := h.store.Create(&nota); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
@@ -187,15 +217,6 @@ type dadosAgregados struct {
 }
 
 func (h *NotasHandlers) agregarDados(notas []models.NotaFiscal) dadosAgregados {
-	precos := map[string]float64{}
-	descricoes := map[string]string{}
-	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
-		for _, p := range produtos {
-			precos[p.Codigo] = p.Preco
-			descricoes[p.Codigo] = p.Descricao
-		}
-	}
-
 	a := dadosAgregados{
 		contagem:             map[string]int{},
 		quantidadePorProduto: map[string]int{},
@@ -210,14 +231,14 @@ func (h *NotasHandlers) agregarDados(notas []models.NotaFiscal) dadosAgregados {
 			continue
 		}
 		for _, item := range nota.Itens {
-			// usa a descricao do produto na agregacao (nao o codigo PROD-XXX),
-			// pra os relatorios falarem em nomes reais de produto
-			nomeProduto := descricoes[item.ProdutoCodigo]
+			// usa a descricao gravada na nota na agregacao (nao o codigo
+			// PROD-XXX), pra os relatorios falarem em nomes reais de produto
+			nomeProduto := item.Descricao
 			if nomeProduto == "" {
 				nomeProduto = item.ProdutoCodigo
 			}
 
-			valorItem := precos[item.ProdutoCodigo] * float64(item.Quantidade)
+			valorItem := item.PrecoUnitario * float64(item.Quantidade)
 			a.quantidadeTotal += item.Quantidade
 			a.valorTotal += valorItem
 			a.quantidadePorProduto[nomeProduto] += item.Quantidade
@@ -299,8 +320,9 @@ func (h *NotasHandlers) Relatorio(w http.ResponseWriter, r *http.Request) {
 	w.Write(arquivo)
 }
 
-// PDF gera e devolve o PDF de uma nota fiscal, buscando a descricao e o
-// preco atual dos produtos no estoque-service para montar a tabela.
+// PDF gera e devolve o PDF de uma nota fiscal, usando a descricao e o
+// preco gravados na propria nota (o retrato do produto no momento da
+// criacao, nao o estado atual do estoque-service).
 func (h *NotasHandlers) PDF(w http.ResponseWriter, r *http.Request) {
 	chave := r.PathValue("chave")
 
@@ -313,14 +335,7 @@ func (h *NotasHandlers) PDF(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	produtosInfo := map[string]pdf.InfoProduto{}
-	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
-		for _, p := range produtos {
-			produtosInfo[p.Codigo] = pdf.InfoProduto{Descricao: p.Descricao, Preco: p.Preco}
-		}
-	}
-
-	arquivo, err := pdf.GerarNotaFiscal(nota, produtosInfo)
+	arquivo, err := pdf.GerarNotaFiscal(nota)
 	if err != nil {
 		http.Error(w, "falha ao gerar PDF: "+err.Error(), http.StatusInternalServerError)
 		return

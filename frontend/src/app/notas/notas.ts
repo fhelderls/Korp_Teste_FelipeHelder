@@ -42,10 +42,6 @@ export class Notas implements OnInit {
     });
   }
 
-  descricaoProduto(codigo: string): string {
-    return this.produtos().find(p => p.codigo === codigo)?.descricao ?? codigo;
-  }
-
   adicionarItem(): void {
     this.itens.update(itens => [...itens, { produto_codigo: '', quantidade: 1 }]);
   }
@@ -88,6 +84,7 @@ export class Notas implements OnInit {
         this.cliente = '';
         this.itens.set([{ produto_codigo: '', quantidade: 1 }]);
         this.carregar();
+        this.produtosService.carregar();
       },
       error: (err) => this.erro.set(err.error ?? 'Falha ao criar nota fiscal')
     });

@@ -1,6 +1,11 @@
 export interface ItemNota {
   produto_codigo: string;
   quantidade: number;
+  // descricao e preco_unitario sao preenchidos pelo backend na criacao da
+  // nota (retrato do produto naquele momento) - o cliente nao envia isso
+  // ao criar, só recebe de volta depois.
+  descricao?: string;
+  preco_unitario?: number;
 }
 
 export interface NotaFiscal {

@@ -11,17 +11,12 @@ import (
 
 const layoutData = "02/01/2006 15:04"
 
-// InfoProduto tem os dados do produto necessarios para exibir no PDF
-// (o faturamento-service nao guarda descricao/preco, so o codigo).
-type InfoProduto struct {
-	Descricao string
-	Preco     float64
-}
-
 // GerarNotaFiscal monta um PDF simples da nota fiscal: cabecalho com
 // chave/cliente/status, tabela de itens com preco unitario e subtotal,
-// e o total geral.
-func GerarNotaFiscal(nota models.NotaFiscal, produtos map[string]InfoProduto) ([]byte, error) {
+// e o total geral. Descricao e preco vem gravados na propria nota (o
+// retrato do produto no momento da criacao), nao de uma consulta ao
+// estoque-service.
+func GerarNotaFiscal(nota models.NotaFiscal) ([]byte, error) {
 	pdf := fpdf.New("P", "mm", "A4", "")
 	pdf.AddPage()
 
@@ -55,17 +50,16 @@ func GerarNotaFiscal(nota models.NotaFiscal, produtos map[string]InfoProduto) ([
 	pdf.SetFont("Arial", "", 10)
 	var total float64
 	for _, item := range nota.Itens {
-		info := produtos[item.ProdutoCodigo]
-		descricao := info.Descricao
+		descricao := item.Descricao
 		if descricao == "" {
 			descricao = item.ProdutoCodigo
 		}
-		subtotal := info.Preco * float64(item.Quantidade)
+		subtotal := item.PrecoUnitario * float64(item.Quantidade)
 		total += subtotal
 
 		pdf.CellFormat(80, 8, descricao, "1", 0, "", false, 0, "")
 		pdf.CellFormat(30, 8, fmt.Sprintf("%d", item.Quantidade), "1", 0, "C", false, 0, "")
-		pdf.CellFormat(35, 8, fmt.Sprintf("R$ %.2f", info.Preco), "1", 0, "R", false, 0, "")
+		pdf.CellFormat(35, 8, fmt.Sprintf("R$ %.2f", item.PrecoUnitario), "1", 0, "R", false, 0, "")
 		pdf.CellFormat(35, 8, fmt.Sprintf("R$ %.2f", subtotal), "1", 1, "R", false, 0, "")
 	}
 

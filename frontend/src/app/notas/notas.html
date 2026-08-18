@@ -63,7 +63,7 @@
           <td>{{ nota.cliente }}</td>
           <td>
             @for (item of nota.itens; track item.produto_codigo) {
-              <span class="item-badge">{{ descricaoProduto(item.produto_codigo) }} x{{ item.quantidade }}</span>
+              <span class="item-badge">{{ item.descricao || item.produto_codigo }} x{{ item.quantidade }}</span>
             }
           </td>
           <td><span class="status-badge" [class]="'status-' + nota.status">{{ nota.status }}</span></td>
