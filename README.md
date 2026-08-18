@@ -24,6 +24,71 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 - Relatório de faturamento em PDF (estilo dashboard): cabeçalho com data de geração, cartões de indicadores (notas fechadas/abertas, ticket médio, clientes atendidos), destaques de produto e cliente com maior faturamento, gráficos de pizza com a participação percentual no faturamento por produto e por cliente, e gráficos de barra com a quantidade vendida por produto e por cliente — tudo a partir dos mesmos dados reais usados no resumo de IA.
 - Cenário de falha com recuperação (ver seção abaixo).
 
+## Screenshots
+
+### Produtos e notas fiscais
+
+![Lista de produtos, com edição inline em andamento](docs/screenshots/01-produtos-lista-edicao.png)
+*Lista de produtos com saldo total/reservado/disponível, e edição inline em andamento.*
+
+![Lista de notas fiscais](docs/screenshots/02-notas-lista.png)
+*Notas Abertas e Fechadas, com as colunas de data de abertura e emissão.*
+
+![Formulário de criação de nota com múltiplos itens](docs/screenshots/03-notas-criar-formulario.png)
+*Cadastro de nota fiscal com múltiplos produtos, escolhidos pela descrição.*
+
+![Nota criada e saldo já reservado no produto](docs/screenshots/04-notas-criada-saldo-reservado.png)
+*Ao criar a nota (ainda Aberta), o produto já mostra o saldo reservado — sem debitar o saldo total ainda.*
+
+![Nota emitida e saldo debitado](docs/screenshots/05-notas-emitida-saldo-debitado.png)
+*Após emitir, a nota fica Fechada e o saldo reservado volta a 0 (o saldo total é debitado de verdade).*
+
+![Indicador de processamento ao emitir](docs/screenshots/08-emitir-processando.png)
+*Indicador "Processando..." enquanto a emissão está em andamento.*
+
+### Disputa de estoque e cancelamento
+
+![Saldo disponível negativo por disputa de estoque, e erro ao emitir](docs/screenshots/06-disputa-estoque-saldo-negativo.png)
+*Duas notas Abertas disputando o mesmo produto: saldo reservado passa do total, disponível fica negativo. A nota que perde a disputa falha ao emitir com "estoque insuficiente".*
+
+![Confirmação antes de cancelar uma nota](docs/screenshots/07-cancelar-confirmacao.png)
+*Cancelar uma nota Aberta libera a reserva de estoque correspondente.*
+
+### Cenário de falha (estoque-service fora do ar)
+
+![Erro ao criar nota com o estoque-service fora do ar](docs/screenshots/09-falha-criar-servico-fora.png)
+*Criação falha por completo se o estoque-service estiver inacessível (sem retry esgotado, nenhuma nota órfã fica registrada).*
+
+![Erro ao emitir nota com o estoque-service fora do ar](docs/screenshots/10-falha-emitir-servico-fora.png)
+*Emissão falha após as tentativas de retry, a nota continua Aberta com a reserva pendente.*
+
+### Validação
+
+![Validação de campo obrigatório no frontend](docs/screenshots/11-validacao-cliente-obrigatorio.png)
+*Validação no frontend (reforçada também no backend) antes de criar a nota.*
+
+### IA e relatório
+
+![Resumo de insights gerado por IA](docs/screenshots/12-resumo-ia.png)
+*Resumo de vendas em linguagem natural, gerado a partir dos dados reais das notas fechadas.*
+
+![PDF de uma nota fiscal individual](docs/screenshots/15-pdf-nota-fiscal.png)
+*PDF de uma nota fiscal, com o nome e o preço dos produtos e as datas de abertura/emissão.*
+
+![Relatório de faturamento em PDF, página 1](docs/screenshots/16-pdf-relatorio-pagina1.png)
+*Relatório de faturamento em PDF: indicadores, destaques e participação por produto.*
+
+![Relatório de faturamento em PDF, página 2](docs/screenshots/17-pdf-relatorio-pagina2.png)
+*Continuação do relatório: participação por cliente e quantidade vendida por produto/cliente.*
+
+### Testes automatizados
+
+![Testes do estoque-service passando](docs/screenshots/13-testes-estoque-service.png)
+*Testes de integração do estoque-service, rodando contra o Postgres real.*
+
+![Testes do faturamento-service passando](docs/screenshots/14-testes-faturamento-service.png)
+*Testes de integração do faturamento-service.*
+
 ## Arquitetura e tratamento de falha
 
 Criar uma nota fiscal (`POST /notas`) e emiti-la (`POST /notas/{chave}/imprimir`) são duas etapas inspiradas no padrão Saga. A ideia central: **reservar é barato e sempre aceito, confirmar é onde a disputa por estoque é resolvida de verdade.**
