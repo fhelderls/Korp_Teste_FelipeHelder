@@ -102,6 +102,7 @@ export class Notas implements OnInit {
       next: () => {
         this.imprimindo.set(null);
         this.carregar();
+        this.produtosService.carregar();
         window.open(this.notasService.pdfUrl(nota.chave), '_blank');
       },
       error: (err) => {
