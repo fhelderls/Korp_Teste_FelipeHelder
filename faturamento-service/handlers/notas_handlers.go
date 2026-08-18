@@ -237,12 +237,14 @@ func (h *NotasHandlers) Relatorio(w http.ResponseWriter, r *http.Request) {
 	a := h.agregarDados(notas)
 
 	arquivo, err := pdf.GerarRelatorio(pdf.DadosRelatorio{
-		NotasFechadas:   a.contagem["Fechada"],
-		NotasAbertas:    a.contagem["Aberta"],
-		QuantidadeTotal: a.quantidadeTotal,
-		ValorTotal:      a.valorTotal,
-		PorProduto:      a.valorPorProduto,
-		PorCliente:      a.valorPorCliente,
+		NotasFechadas:        a.contagem["Fechada"],
+		NotasAbertas:         a.contagem["Aberta"],
+		QuantidadeTotal:      a.quantidadeTotal,
+		ValorTotal:           a.valorTotal,
+		PorProduto:           a.valorPorProduto,
+		PorCliente:           a.valorPorCliente,
+		QuantidadePorProduto: a.quantidadePorProduto,
+		QuantidadePorCliente: a.quantidadePorCliente,
 	})
 	if err != nil {
 		http.Error(w, "falha ao gerar relatorio: "+err.Error(), http.StatusInternalServerError)
