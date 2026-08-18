@@ -9,11 +9,12 @@ import (
 )
 
 type ProdutosHandlers struct {
-	store *store.ProdutosStore
+	store         *store.ProdutosStore
+	reservasStore *store.ReservasStore
 }
 
-func NewProdutosHandlers(s *store.ProdutosStore) *ProdutosHandlers {
-	return &ProdutosHandlers{store: s}
+func NewProdutosHandlers(s *store.ProdutosStore, r *store.ReservasStore) *ProdutosHandlers {
+	return &ProdutosHandlers{store: s, reservasStore: r}
 }
 
 // Create recebe um produto em JSON no corpo da requisicao e cria no banco.
@@ -42,6 +43,9 @@ func (h *ProdutosHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 
 	}
+	// produto recem-criado nao pode ter nenhuma reserva pendente ainda
+	produto.SaldoDisponivel = produto.Saldo
+
 	w.Header().Set("Content-type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(produto)
@@ -82,6 +86,14 @@ func (h *ProdutosHandlers) Update(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	reservados, err := h.reservasStore.SomaPendentesPorProduto()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	produto.SaldoReservado = reservados[produto.Codigo]
+	produto.SaldoDisponivel = produto.Saldo - produto.SaldoReservado
+
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(produto)
 }
@@ -94,6 +106,17 @@ func (h *ProdutosHandlers) List(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
+
+	reservados, err := h.reservasStore.SomaPendentesPorProduto()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+	for i := range produtos {
+		produtos[i].SaldoReservado = reservados[produtos[i].Codigo]
+		produtos[i].SaldoDisponivel = produtos[i].Saldo - produtos[i].SaldoReservado
+	}
+
 	w.Header().Set("Content-type", "application/json")
 	json.NewEncoder(w).Encode(produtos)
 

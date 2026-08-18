@@ -15,6 +15,7 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 ## Funcionalidades
 
 - CRUD de produtos (criar, listar, editar, excluir), com preço. Código do produto (`PROD-001`, `PROD-002`...) gerado automaticamente, nunca escolhido pelo usuário. A edição serve principalmente para reajustar o saldo em estoque sem precisar excluir e recriar o produto.
+- Saldo de estoque em três partes: saldo total, saldo reservado (soma das reservas ainda pendentes, nem confirmadas nem canceladas) e saldo disponível (`total - reservado`), calculado em tempo real e exposto pela API de produtos.
 - Cadastro de nota fiscal com múltiplos produtos (escolhidos pela descrição, não pelo código). Número da nota (`NF-001`, `NF-002`...) gerado automaticamente. Nasce com status **Aberta** e data de abertura registrada.
 - Emissão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Debita o saldo dos produtos, muda o status para **Fechada** e grava a data de emissão. Uma nota `Fechada` não pode ser emitida de novo; se a emissão falhar, a nota continua `Aberta` (sem data de emissão) e pode ser emitida de novo depois.
 - Download da nota fiscal em PDF (com nome e preço dos produtos, não o código, e as datas de abertura e emissão).

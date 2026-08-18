@@ -14,7 +14,7 @@ export class Produtos implements OnInit {
   produtos: ProdutosService['produtos'];
   erro = signal('');
 
-  novoProduto: Produto = { codigo: '', descricao: '', saldo: 0, preco: 0 };
+  novoProduto: Produto = { codigo: '', descricao: '', saldo: 0, preco: 0, saldo_reservado: 0, saldo_disponivel: 0 };
   precoTexto = '';
 
   codigoEditando = signal<string | null>(null);
@@ -54,7 +54,7 @@ export class Produtos implements OnInit {
 
     this.produtosService.criar(this.novoProduto).subscribe({
       next: () => {
-        this.novoProduto = { codigo: '', descricao: '', saldo: 0, preco: 0 };
+        this.novoProduto = { codigo: '', descricao: '', saldo: 0, preco: 0, saldo_reservado: 0, saldo_disponivel: 0 };
         this.precoTexto = '';
         this.produtosService.carregar();
       },
@@ -104,7 +104,7 @@ export class Produtos implements OnInit {
       return;
     }
 
-    const produtoAtualizado: Produto = { codigo, descricao: this.edicaoDescricao, saldo: this.edicaoSaldo, preco };
+    const produtoAtualizado: Produto = { codigo, descricao: this.edicaoDescricao, saldo: this.edicaoSaldo, preco, saldo_reservado: 0, saldo_disponivel: 0 };
     this.produtosService.atualizar(codigo, produtoAtualizado).subscribe({
       next: () => {
         this.codigoEditando.set(null);

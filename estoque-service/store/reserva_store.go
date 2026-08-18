@@ -16,6 +16,34 @@ func NewReservasStore(db *sql.DB) *ReservasStore {
 	return &ReservasStore{db: db}
 }
 
+// SomaPendentesPorProduto soma a quantidade reservada (em reservas ainda
+// 'pendente' - nem confirmadas, nem canceladas) de cada produto. Usado
+// pra calcular o saldo disponivel (saldo total menos o que esta retido
+// em reservas em andamento).
+func (s *ReservasStore) SomaPendentesPorProduto() (map[string]int, error) {
+	rows, err := s.db.Query(`SELECT itens FROM reservas WHERE status = 'pendente'`)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao buscar reservas pendentes: %w", err)
+	}
+	defer rows.Close()
+
+	somas := map[string]int{}
+	for rows.Next() {
+		var itensJSON string
+		if err := rows.Scan(&itensJSON); err != nil {
+			return nil, err
+		}
+		var itens []models.ItemReserva
+		if err := json.Unmarshal([]byte(itensJSON), &itens); err != nil {
+			return nil, fmt.Errorf("falha ao desserializar itens da reserva: %w", err)
+		}
+		for _, item := range itens {
+			somas[item.ProdutoCodigo] += item.Quantidade
+		}
+	}
+	return somas, rows.Err()
+}
+
 // Reservar valida o saldo de cada item e desconta o estoque, tudo dentro
 // de uma unica transacao. Se a chave ja existir, retorna erro (idempotencia:
 // o faturamento-service pode repetir a chamada com seguranca).

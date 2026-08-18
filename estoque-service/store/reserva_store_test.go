@@ -138,3 +138,38 @@ func TestCancelar_DevolveSaldo(t *testing.T) {
 		t.Errorf("saldo esperado 10 (devolvido), obtido %d", atualizado.Saldo)
 	}
 }
+
+func TestSomaPendentesPorProduto(t *testing.T) {
+	produtosStore := NewProdutosStore(testDB)
+	reservasStore := NewReservasStore(testDB)
+
+	produto := &models.Produto{Codigo: "TEST_PENDENTE_1", Descricao: "Produto de teste", Saldo: 10}
+	if err := produtosStore.Create(produto); err != nil {
+		t.Fatalf("falha ao criar produto de teste: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM produtos WHERE codigo = $1`, produto.Codigo)
+	defer testDB.Exec(`DELETE FROM reservas WHERE chave IN ($1, $2)`, "TEST_CHAVE_PENDENTE", "TEST_CHAVE_CONFIRMADA")
+
+	// reserva que fica pendente (nao confirma nem cancela)
+	itensPendente := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 3}}
+	if err := reservasStore.Reservar("TEST_CHAVE_PENDENTE", itensPendente); err != nil {
+		t.Fatalf("Reservar retornou erro inesperado: %v", err)
+	}
+
+	// reserva confirmada nao deveria contar como pendente
+	itensConfirmada := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 2}}
+	if err := reservasStore.Reservar("TEST_CHAVE_CONFIRMADA", itensConfirmada); err != nil {
+		t.Fatalf("Reservar retornou erro inesperado: %v", err)
+	}
+	if err := reservasStore.Confirmar("TEST_CHAVE_CONFIRMADA"); err != nil {
+		t.Fatalf("Confirmar retornou erro inesperado: %v", err)
+	}
+
+	somas, err := reservasStore.SomaPendentesPorProduto()
+	if err != nil {
+		t.Fatalf("SomaPendentesPorProduto retornou erro inesperado: %v", err)
+	}
+	if somas[produto.Codigo] != 3 {
+		t.Errorf("soma pendente esperada 3 (so a reserva nao confirmada), obtida %d", somas[produto.Codigo])
+	}
+}

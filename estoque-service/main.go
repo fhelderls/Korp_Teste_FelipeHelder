@@ -43,7 +43,7 @@ func main() {
 	produtosStore := store.NewProdutosStore(database)
 	reservasStore := store.NewReservasStore(database)
 
-	produtosHandlers := handlers.NewProdutosHandlers(produtosStore)
+	produtosHandlers := handlers.NewProdutosHandlers(produtosStore, reservasStore)
 	reservasHandlers := handlers.NewReservasHandlers(reservasStore)
 
 	mux := http.NewServeMux()
