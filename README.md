@@ -15,9 +15,9 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 ## Funcionalidades
 
 - CRUD de produtos (criar, listar, editar, excluir), com preço. Código do produto (`PROD-001`, `PROD-002`...) gerado automaticamente, nunca escolhido pelo usuário. A edição serve principalmente para reajustar o saldo em estoque sem precisar excluir e recriar o produto.
-- Saldo de estoque em três partes: saldo total, saldo reservado (soma das reservas ainda pendentes, nem confirmadas nem canceladas) e saldo disponível (`total - reservado`), calculado em tempo real e exposto pela API de produtos.
-- Cadastro de nota fiscal com múltiplos produtos (escolhidos pela descrição, não pelo código). Número da nota (`NF-001`, `NF-002`...) gerado automaticamente. Nasce com status **Aberta**, data de abertura registrada, e já **reserva o estoque** dos itens nesse momento (o saldo diminui e fica retido para essa nota).
-- Emissão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Confirma a reserva feita na criação, muda o status para **Fechada** e grava a data de emissão. Uma nota `Fechada` não pode ser emitida de novo; se a emissão falhar, a nota continua `Aberta` com o estoque ainda reservado, e pode ser emitida de novo depois.
+- Saldo de estoque em três partes: saldo total, saldo reservado (soma das quantidades de todas as notas ainda `Aberta` para aquele produto) e saldo disponível (`total - reservado`), calculado em tempo real e exposto pela API de produtos. O saldo disponível pode ficar **negativo** quando notas abertas, juntas, comprometem mais estoque do que existe — é o sinal visível de que há uma disputa por aquele produto ainda não resolvida.
+- Cadastro de nota fiscal com múltiplos produtos (escolhidos pela descrição, não pelo código). Número da nota (`NF-001`, `NF-002`...) gerado automaticamente. Nasce com status **Aberta**, data de abertura registrada, e já **registra a reserva** dos itens nesse momento (conta para o saldo reservado do produto).
+- Emissão de nota fiscal: botão dedicado, com indicador de processamento enquanto roda. Confirma a reserva feita na criação — é aqui que o saldo de verdade é conferido e debitado, resolvendo a disputa entre notas concorrentes — e muda o status para **Fechada**, gravando a data de emissão. Uma nota `Fechada` não pode ser emitida de novo; se a emissão falhar (ex: outra nota concorrente já consumiu o saldo), a nota continua `Aberta` com a reserva ainda pendente, e pode ser emitida de novo depois.
 - Download da nota fiscal em PDF (com nome e preço dos produtos, não o código, e as datas de abertura e emissão).
 - Resumo de insights de vendas gerado por IA (quantidade/valor vendido por produto e por cliente, no estilo do painel de insights da Korp), a partir de dados reais das notas fechadas.
 - Relatório de faturamento em PDF (estilo dashboard): cabeçalho com data de geração, cartões de indicadores (notas fechadas/abertas, ticket médio, clientes atendidos), destaques de produto e cliente com maior faturamento, gráficos de pizza com a participação percentual no faturamento por produto e por cliente, e gráficos de barra com a quantidade vendida por produto e por cliente — tudo a partir dos mesmos dados reais usados no resumo de IA.
@@ -25,16 +25,16 @@ Cada microsserviço tem seu próprio banco de dados PostgreSQL (`estoque` e `fat
 
 ## Arquitetura e tratamento de falha
 
-Criar uma nota fiscal (`POST /notas`) e emiti-la (`POST /notas/{chave}/imprimir`) são duas etapas inspiradas no padrão Saga, cada uma cuidando de uma parte da reserva de estoque:
+Criar uma nota fiscal (`POST /notas`) e emiti-la (`POST /notas/{chave}/imprimir`) são duas etapas inspiradas no padrão Saga. A ideia central: **reservar é barato e sempre aceito, confirmar é onde a disputa por estoque é resolvida de verdade.**
 
-1. **Criar**: o `faturamento-service` grava a nota com número sequencial gerado automaticamente e status `Aberta`, e imediatamente chama `POST /reservas` no `estoque-service`, que valida o saldo e desconta o estoque dentro de uma transação com `SELECT ... FOR UPDATE` (trava a linha do produto até a transação terminar, evitando que duas reservas concorrentes deixem o saldo inconsistente). A reserva fica com status `pendente` — o saldo já saiu do total, mas ainda não foi definitivamente consumido. Se a reserva falhar (saldo insuficiente, ou o `estoque-service` fora do ar), a criação da nota inteira é desfeita: não existe nota `Aberta` sem estoque reservado por trás.
-2. **Emitir**: confere que a nota está `Aberta` (uma nota `Fechada` não pode ser emitida de novo) e chama `POST /reservas/{chave}/confirmar`, que muda a reserva de `pendente` para `confirmada`. Se der certo, a nota vira `Fechada` e grava a data de emissão.
+1. **Criar**: o `faturamento-service` grava a nota com número sequencial gerado automaticamente e status `Aberta`, e imediatamente chama `POST /reservas` no `estoque-service`, que só registra a intenção de uso (itens e quantidades) com status `pendente` — **sem conferir nem descontar saldo**. Por isso a criação praticamente nunca falha por regra de negócio: só falha se o `estoque-service` estiver mesmo fora do ar, e nesse caso a criação da nota inteira é desfeita (não fica nota `Aberta` sem reserva correspondente).
+2. **Emitir**: confere que a nota está `Aberta` (uma nota `Fechada` não pode ser emitida de novo) e chama `POST /reservas/{chave}/confirmar`. É só agora que o `estoque-service` de fato verifica o saldo e o desconta, dentro de uma transação com `SELECT ... FOR UPDATE` (trava a linha do produto até a transação terminar). Se der certo, a nota vira `Fechada` e grava a data de emissão.
 
-Enquanto uma nota está `Aberta`, o estoque que ela usa já saiu do saldo disponível para novas notas (ver `saldo_reservado`/`saldo_disponivel` na seção de funcionalidades) — mas só é definitivamente consumido quando ela é emitida.
+Como reservar nunca verifica saldo, **o saldo reservado de um produto pode passar do saldo total** quando várias notas `Aberta` disputam o mesmo item — o saldo disponível (`saldo - reservado`) fica negativo, sinalizando a disputa. Ela só é resolvida quando as notas tentam ser emitidas: a primeira a confirmar leva o saldo; as demais falham na emissão com "estoque insuficiente" e continuam `Aberta`, podendo tentar de novo depois (se o saldo for reposto, ou a nota concorrente for descartada).
 
-Se o `estoque-service` estiver fora do ar ou recusar a confirmação no momento da emissão, a nota **continua `Aberta`** (com o estoque ainda reservado, sem data de emissão), e o erro é devolvido ao usuário de forma clara. Não existe um status de "falha" separado: uma nota que não foi emitida com sucesso simplesmente segue `Aberta`, e o usuário pode clicar em Emitir de novo quando quiser — essa é a própria forma de reprocessar, sem precisar de uma ação especial.
+Se o `estoque-service` estiver fora do ar ou recusar a confirmação por falta de saldo, a nota **continua `Aberta`** (com a reserva ainda pendente, sem data de emissão), e o erro é devolvido ao usuário de forma clara. Não existe um status de "falha" separado: uma nota que não foi emitida com sucesso simplesmente segue `Aberta`, e o usuário pode clicar em Emitir de novo quando quiser — essa é a própria forma de reprocessar, sem precisar de uma ação especial.
 
-As chamadas HTTP do `faturamento-service` para o `estoque-service` (reservar/confirmar) têm retry com backoff exponencial (3 tentativas, 200ms/400ms/800ms, timeout de 2s por tentativa) para falhas de rede — uma indisponibilidade momentânea não precisa virar falha na hora. Recusas de regra de negócio (ex: saldo insuficiente) não são reprocessadas automaticamente, já que tentar de novo não muda o resultado.
+As chamadas HTTP do `faturamento-service` para o `estoque-service` (reservar/confirmar) têm retry com backoff exponencial (3 tentativas, 200ms/400ms/800ms, timeout de 2s por tentativa) para falhas de rede — uma indisponibilidade momentânea não precisa virar falha na hora. Recusas de regra de negócio na confirmação (saldo insuficiente) não são reprocessadas automaticamente, já que tentar de novo na hora não muda o resultado.
 
 ## Como rodar
 
@@ -60,7 +60,7 @@ Acesse `http://localhost:4200` para usar a interface.
 bash scripts/seed.sh
 ```
 
-O script cria 15 produtos e 17 notas fiscais via API (usando os mesmos endpoints públicos do sistema, sem acesso direto ao banco): a maioria fechada com dados variados de cliente/produto, duas propositalmente deixadas "Aberta", e uma tentativa de criação com quantidade maior que o saldo disponível, que falha de propósito (a criação em si é recusada, já que a reserva de estoque acontece nesse momento), para exercitar o cenário de erro.
+O script cria 15 produtos e 18 notas fiscais via API (usando os mesmos endpoints públicos do sistema, sem acesso direto ao banco): a maioria fechada com dados variados de cliente/produto, duas propositalmente deixadas "Aberta", e uma criada com quantidade maior que o saldo (a criação funciona normalmente, só a tentativa de emissão falha de propósito, ficando "Aberta"), para exercitar o cenário de erro.
 
 ## Testando o cenário de falha manualmente
 
@@ -111,11 +111,11 @@ Um workflow do GitHub Actions (`.github/workflows/ci.yml`) roda essa mesma suít
 
 ### Concorrência
 
-O `Reservar` do `estoque-service` roda dentro de uma transação com `SELECT ... FOR UPDATE` na linha do produto. Isso trava a linha durante a transação, garantindo que duas reservas concorrentes para o mesmo produto sejam processadas em sequência, não em paralelo, evitando que o saldo fique inconsistente (ex: duas notas sendo criadas ao mesmo tempo disputando o último item em estoque).
+O `Confirmar` do `estoque-service` roda dentro de uma transação com `SELECT ... FOR UPDATE` na linha do produto. Isso trava a linha durante a transação, garantindo que duas confirmações concorrentes para o mesmo produto sejam processadas em sequência, não em paralelo, evitando que o saldo fique inconsistente (ex: duas notas sendo emitidas ao mesmo tempo disputando o último item em estoque — uma delas espera a outra terminar antes de conferir o saldo).
 
 ### Idempotência
 
-Tanto a reserva de estoque quanto a nota fiscal usam uma `chave`/número como identificador único (chave primária no banco, gerada automaticamente e sequencial). `POST /notas` sempre cria uma nota nova e reserva o estoque uma única vez; emitir é uma ação separada (`POST /notas/{chave}/imprimir`) que só confirma a reserva já existente, nunca reserva de novo: só funciona em notas `Aberta`, e uma nota `Fechada` recusa ser emitida de novo (evita confirmar/debitar o estoque duas vezes pela mesma nota).
+Tanto a reserva de estoque quanto a nota fiscal usam uma `chave`/número como identificador único (chave primária no banco, gerada automaticamente e sequencial). `POST /notas` sempre cria uma nota nova e registra a reserva uma única vez; emitir é uma ação separada (`POST /notas/{chave}/imprimir`) que só confirma a reserva já existente, nunca registra outra: só funciona em notas `Aberta`, e uma nota `Fechada` recusa ser emitida de novo (evita confirmar/debitar o estoque duas vezes pela mesma nota).
 
 ### Uso de IA
 

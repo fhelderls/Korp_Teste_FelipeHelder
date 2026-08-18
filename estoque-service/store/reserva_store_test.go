@@ -34,7 +34,7 @@ func TestMain(m *testing.M) {
 	os.Exit(code)
 }
 
-func TestReservar_DescontaSaldo(t *testing.T) {
+func TestReservar_NaoMexeNoSaldo(t *testing.T) {
 	produtosStore := NewProdutosStore(testDB)
 	reservasStore := NewReservasStore(testDB)
 
@@ -45,7 +45,9 @@ func TestReservar_DescontaSaldo(t *testing.T) {
 	defer testDB.Exec(`DELETE FROM produtos WHERE codigo = $1`, produto.Codigo)
 	defer testDB.Exec(`DELETE FROM reservas WHERE chave = $1`, "TEST_CHAVE_1")
 
-	itens := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 4}}
+	// Reservar so registra a intencao, nao verifica nem desconta saldo -
+	// por isso funciona mesmo pedindo mais do que o produto tem.
+	itens := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 999}}
 	if err := reservasStore.Reservar("TEST_CHAVE_1", itens); err != nil {
 		t.Fatalf("Reservar retornou erro inesperado: %v", err)
 	}
@@ -54,37 +56,12 @@ func TestReservar_DescontaSaldo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("falha ao buscar produto atualizado: %v", err)
 	}
-	if atualizado.Saldo != 6 {
-		t.Errorf("saldo esperado 6, obtido %d", atualizado.Saldo)
+	if atualizado.Saldo != 10 {
+		t.Errorf("saldo nao deveria ter mudado, esperado 10, obtido %d", atualizado.Saldo)
 	}
 }
 
-func TestReservar_SaldoInsuficiente(t *testing.T) {
-	produtosStore := NewProdutosStore(testDB)
-	reservasStore := NewReservasStore(testDB)
-
-	produto := &models.Produto{Codigo: "TEST_RESERVAR_2", Descricao: "Produto de teste", Saldo: 2}
-	if err := produtosStore.Create(produto); err != nil {
-		t.Fatalf("falha ao criar produto de teste: %v", err)
-	}
-	defer testDB.Exec(`DELETE FROM produtos WHERE codigo = $1`, produto.Codigo)
-	defer testDB.Exec(`DELETE FROM reservas WHERE chave = $1`, "TEST_CHAVE_2")
-
-	itens := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 5}}
-	err := reservasStore.Reservar("TEST_CHAVE_2", itens)
-	if err == nil {
-		t.Fatal("esperava erro de saldo insuficiente, mas Reservar nao retornou erro")
-	}
-
-	atualizado, err := produtosStore.GetByCodigo(produto.Codigo)
-	if err != nil {
-		t.Fatalf("falha ao buscar produto atualizado: %v", err)
-	}
-	if atualizado.Saldo != 2 {
-		t.Errorf("saldo nao deveria ter mudado, esperado 2, obtido %d", atualizado.Saldo)
-	}
-}
-func TestConfirmar_MarcaComoConfirmada(t *testing.T) {
+func TestConfirmar_DescontaSaldo(t *testing.T) {
 	produtosStore := NewProdutosStore(testDB)
 	reservasStore := NewReservasStore(testDB)
 
@@ -104,13 +81,61 @@ func TestConfirmar_MarcaComoConfirmada(t *testing.T) {
 		t.Fatalf("Confirmar retornou erro inesperado: %v", err)
 	}
 
+	atualizado, err := produtosStore.GetByCodigo(produto.Codigo)
+	if err != nil {
+		t.Fatalf("falha ao buscar produto atualizado: %v", err)
+	}
+	if atualizado.Saldo != 7 {
+		t.Errorf("saldo esperado 7, obtido %d", atualizado.Saldo)
+	}
+
 	// confirmar de novo deve falhar, porque a reserva ja nao esta mais pendente
 	if err := reservasStore.Confirmar("TEST_CHAVE_CONFIRMAR"); err == nil {
 		t.Error("esperava erro ao confirmar uma reserva ja confirmada, mas nao retornou erro")
 	}
 }
 
-func TestCancelar_DevolveSaldo(t *testing.T) {
+func TestConfirmar_SaldoInsuficiente(t *testing.T) {
+	produtosStore := NewProdutosStore(testDB)
+	reservasStore := NewReservasStore(testDB)
+
+	// simula a disputa: o produto so tem 2 unidades, mas a reserva pede 5
+	// (ex: outra nota ja confirmou antes e consumiu o saldo)
+	produto := &models.Produto{Codigo: "TEST_CONFIRMAR_2", Descricao: "Produto de teste", Saldo: 2}
+	if err := produtosStore.Create(produto); err != nil {
+		t.Fatalf("falha ao criar produto de teste: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM produtos WHERE codigo = $1`, produto.Codigo)
+	defer testDB.Exec(`DELETE FROM reservas WHERE chave = $1`, "TEST_CHAVE_DISPUTA")
+
+	itens := []models.ItemReserva{{ProdutoCodigo: produto.Codigo, Quantidade: 5}}
+	if err := reservasStore.Reservar("TEST_CHAVE_DISPUTA", itens); err != nil {
+		t.Fatalf("Reservar retornou erro inesperado: %v", err)
+	}
+
+	if err := reservasStore.Confirmar("TEST_CHAVE_DISPUTA"); err == nil {
+		t.Fatal("esperava erro de saldo insuficiente, mas Confirmar nao retornou erro")
+	}
+
+	atualizado, err := produtosStore.GetByCodigo(produto.Codigo)
+	if err != nil {
+		t.Fatalf("falha ao buscar produto atualizado: %v", err)
+	}
+	if atualizado.Saldo != 2 {
+		t.Errorf("saldo nao deveria ter mudado, esperado 2, obtido %d", atualizado.Saldo)
+	}
+
+	// a reserva continua pendente - pode tentar confirmar de novo depois
+	somas, err := reservasStore.SomaPendentesPorProduto()
+	if err != nil {
+		t.Fatalf("SomaPendentesPorProduto retornou erro inesperado: %v", err)
+	}
+	if somas[produto.Codigo] != 5 {
+		t.Errorf("reserva deveria continuar pendente com 5 unidades, obtido %d", somas[produto.Codigo])
+	}
+}
+
+func TestCancelar_NaoMexeNoSaldo(t *testing.T) {
 	produtosStore := NewProdutosStore(testDB)
 	reservasStore := NewReservasStore(testDB)
 
@@ -130,12 +155,18 @@ func TestCancelar_DevolveSaldo(t *testing.T) {
 		t.Fatalf("Cancelar retornou erro inesperado: %v", err)
 	}
 
+	// Reservar nunca descontou nada, entao Cancelar nao tem nada pra devolver
 	atualizado, err := produtosStore.GetByCodigo(produto.Codigo)
 	if err != nil {
 		t.Fatalf("falha ao buscar produto atualizado: %v", err)
 	}
 	if atualizado.Saldo != 10 {
-		t.Errorf("saldo esperado 10 (devolvido), obtido %d", atualizado.Saldo)
+		t.Errorf("saldo esperado 10 (nunca foi descontado), obtido %d", atualizado.Saldo)
+	}
+
+	// cancelar de novo deve falhar, porque a reserva ja nao esta mais pendente
+	if err := reservasStore.Cancelar("TEST_CHAVE_CANCELAR"); err == nil {
+		t.Error("esperava erro ao cancelar uma reserva ja cancelada, mas nao retornou erro")
 	}
 }
 

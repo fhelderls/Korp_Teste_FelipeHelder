@@ -28,11 +28,13 @@ type criarRequest struct {
 }
 
 // Criar cadastra uma nota fiscal nova, com numero sequencial gerado
-// automaticamente e status 'Aberta', e ja RESERVA o estoque dos itens
-// nesse momento (o saldo diminui e fica retido para essa nota ate ela
-// ser emitida). Se a reserva falhar (saldo insuficiente ou o
-// estoque-service fora do ar), a criacao da nota inteira e desfeita -
-// nao existe nota 'Aberta' sem estoque reservado por tras.
+// automaticamente e status 'Aberta', e ja REGISTRA a reserva dos itens
+// nesse momento - mas sem verificar saldo, so a intencao de uso fica
+// guardada (por isso o saldo_reservado de um produto pode passar do
+// saldo total, se varias notas abertas disputarem o mesmo produto). A
+// disputa por estoque so e resolvida de fato na emissao. Se o
+// estoque-service estiver fora do ar e a reserva nao puder nem ser
+// registrada, a criacao da nota inteira e desfeita.
 func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 	var req criarRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -70,7 +72,7 @@ func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 
 	if err := h.estoqueClient.Reservar(nota.Chave, nota.Itens); err != nil {
 		h.store.Delete(nota.Chave)
-		http.Error(w, "nao foi possivel criar a nota, falha ao reservar o estoque: "+err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, "nao foi possivel criar a nota, falha ao registrar a reserva de estoque: "+err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 
@@ -80,14 +82,15 @@ func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 }
 
 // Imprimir e a acao do botao de emissao: confirma a reserva de estoque
-// que ja foi feita na criacao da nota (o saldo ja tinha sido debitado e
-// retido), e muda o status para 'Fechada'. So pode ser chamada em notas
-// 'Aberta' - uma nota 'Fechada' nao pode ser emitida de novo. Se a
-// confirmacao falhar (ex: estoque-service fora do ar), a nota
-// simplesmente continua 'Aberta' com o estoque ainda reservado, o erro e
-// devolvido ao usuario, e ele pode clicar em Emitir de novo mais tarde -
-// e assim que o reprocessamento acontece, sem precisar de uma acao
-// separada.
+// que ja foi registrada na criacao da nota. E so agora, na confirmacao,
+// que o saldo de verdade e conferido e debitado - se nao houver saldo
+// suficiente (porque outra nota concorrente ja consumiu o estoque, por
+// exemplo), a emissao falha aqui. So pode ser chamada em notas 'Aberta' -
+// uma nota 'Fechada' nao pode ser emitida de novo. Em qualquer falha
+// (saldo insuficiente ou estoque-service fora do ar), a nota simplesmente
+// continua 'Aberta' com a reserva ainda pendente, o erro e devolvido ao
+// usuario, e ele pode clicar em Emitir de novo mais tarde - e assim que o
+// reprocessamento acontece, sem precisar de uma acao separada.
 func (h *NotasHandlers) Imprimir(w http.ResponseWriter, r *http.Request) {
 	chave := r.PathValue("chave")
 
