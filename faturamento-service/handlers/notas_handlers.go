@@ -28,9 +28,11 @@ type criarRequest struct {
 }
 
 // Criar cadastra uma nota fiscal nova, com numero sequencial gerado
-// automaticamente e status 'Aberta'. So grava o cadastro - nao mexe em
-// estoque nenhum ainda. A impressao (que debita o estoque de verdade) e
-// uma acao separada, feita depois pelo Imprimir.
+// automaticamente e status 'Aberta', e ja RESERVA o estoque dos itens
+// nesse momento (o saldo diminui e fica retido para essa nota ate ela
+// ser emitida). Se a reserva falhar (saldo insuficiente ou o
+// estoque-service fora do ar), a criacao da nota inteira e desfeita -
+// nao existe nota 'Aberta' sem estoque reservado por tras.
 func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 	var req criarRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -66,18 +68,26 @@ func (h *NotasHandlers) Criar(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if err := h.estoqueClient.Reservar(nota.Chave, nota.Itens); err != nil {
+		h.store.Delete(nota.Chave)
+		http.Error(w, "nao foi possivel criar a nota, falha ao reservar o estoque: "+err.Error(), http.StatusServiceUnavailable)
+		return
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusCreated)
 	json.NewEncoder(w).Encode(nota)
 }
 
-// Imprimir e a acao do botao de impressao: reserva e confirma o estoque
-// dos itens da nota e, se der tudo certo, muda o status para 'Fechada'.
-// So pode ser chamada em notas 'Aberta' - uma nota 'Fechada' nao pode ser
-// impressa de novo. Se a reserva ou a confirmacao falharem, a nota
-// simplesmente continua 'Aberta' (nada e alterado), o erro e devolvido
-// ao usuario, e ele pode clicar em Imprimir de novo mais tarde - e assim
-// que o reprocessamento acontece, sem precisar de uma acao separada.
+// Imprimir e a acao do botao de emissao: confirma a reserva de estoque
+// que ja foi feita na criacao da nota (o saldo ja tinha sido debitado e
+// retido), e muda o status para 'Fechada'. So pode ser chamada em notas
+// 'Aberta' - uma nota 'Fechada' nao pode ser emitida de novo. Se a
+// confirmacao falhar (ex: estoque-service fora do ar), a nota
+// simplesmente continua 'Aberta' com o estoque ainda reservado, o erro e
+// devolvido ao usuario, e ele pode clicar em Emitir de novo mais tarde -
+// e assim que o reprocessamento acontece, sem precisar de uma acao
+// separada.
 func (h *NotasHandlers) Imprimir(w http.ResponseWriter, r *http.Request) {
 	chave := r.PathValue("chave")
 
@@ -91,18 +101,12 @@ func (h *NotasHandlers) Imprimir(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if nota.Status != "Aberta" {
-		http.Error(w, "nota fiscal nao esta aberta, nao pode ser impressa novamente", http.StatusConflict)
-		return
-	}
-
-	if err := h.estoqueClient.Reservar(nota.Chave, nota.Itens); err != nil {
-		http.Error(w, "nao foi possivel imprimir a nota, falha ao reservar o estoque: "+err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, "nota fiscal nao esta aberta, nao pode ser emitida novamente", http.StatusConflict)
 		return
 	}
 
 	if err := h.estoqueClient.Confirmar(nota.Chave); err != nil {
-		h.estoqueClient.Cancelar(nota.Chave)
-		http.Error(w, "falha ao confirmar a impressao, reserva de estoque cancelada: "+err.Error(), http.StatusServiceUnavailable)
+		http.Error(w, "nao foi possivel emitir a nota, falha ao confirmar a reserva de estoque: "+err.Error(), http.StatusServiceUnavailable)
 		return
 	}
 

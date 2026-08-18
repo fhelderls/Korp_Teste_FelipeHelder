@@ -20,9 +20,7 @@ func NewNotasStore(db *sql.DB) *NotasStore {
 
 // Create insere uma nova nota fiscal com numero sequencial gerado
 // automaticamente (NF-001, NF-002...) e status 'Aberta'. Preenche
-// nota.Chave e nota.DataAbertura com os valores gerados pelo banco. Nao
-// mexe em estoque nenhum - so grava o cadastro, conforme o edital pede
-// (criar e imprimir sao acoes separadas).
+// nota.Chave e nota.DataAbertura com os valores gerados pelo banco.
 func (s *NotasStore) Create(nota *models.NotaFiscal) error {
 	var numero int
 	if err := s.db.QueryRow(`SELECT nextval('notas_numero_seq')`).Scan(&numero); err != nil {
@@ -44,6 +42,14 @@ func (s *NotasStore) Create(nota *models.NotaFiscal) error {
 	nota.Status = "Aberta"
 	return nil
 
+}
+
+// Delete remove uma nota fiscal pela chave. Usado como compensacao quando
+// a nota e criada mas a reserva de estoque correspondente falha - desfaz
+// o cadastro em vez de deixar uma nota 'Aberta' sem estoque reservado.
+func (s *NotasStore) Delete(chave string) error {
+	_, err := s.db.Exec(`DELETE FROM notas WHERE chave = $1`, chave)
+	return err
 }
 
 // MarcarEmitida muda o status de uma nota fiscal para 'Fechada' e grava a

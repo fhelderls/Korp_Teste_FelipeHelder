@@ -70,8 +70,10 @@ nota_fechada "Livraria Central" "[{\"produto_codigo\":\"$CANETA_GEL\",\"quantida
 criar_nota "Escola Municipal Sao Jose" "[{\"produto_codigo\":\"$REGUA\",\"quantidade\":45},{\"produto_codigo\":\"$APONTADOR\",\"quantidade\":45}]" > /dev/null
 criar_nota "Distribuidora ABC Papelaria" "[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":5},{\"produto_codigo\":\"$TESOURA\",\"quantidade\":10}]" > /dev/null
 
-# uma nota criada e a tentativa de impressao falha de proposito (quantidade maior que o saldo) - fica "Aberta"
-chave_falha=$(criar_nota "Comercio Silva e Filhos" "[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":9999}]")
-imprimir_nota "$chave_falha" || true
+# tentativa de criar uma nota com quantidade maior que o saldo - a criacao
+# em si falha (a reserva de estoque e feita na hora de criar), nenhuma nota
+# fica registrada. So pra deixar claro que a validacao bloqueia na criacao,
+# nao so na emissao.
+curl.exe -s -o /dev/null -X POST "$FATURAMENTO/notas" -H "Content-Type: application/json" -d "{\"cliente\":\"Comercio Silva e Filhos\",\"itens\":[{\"produto_codigo\":\"$MOCHILA\",\"quantidade\":9999}]}" || true
 
 echo "Seed concluido."
