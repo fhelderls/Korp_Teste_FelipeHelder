@@ -30,4 +30,8 @@ export class NotasService {
   resumo(): Observable<{ resumo: string }> {
     return this.http.get<{ resumo: string }>(`${this.baseUrl}/notas/resumo`);
   }
+
+  relatorioUrl(): string {
+    return `${this.baseUrl}/notas/relatorio`;
+  }
 }

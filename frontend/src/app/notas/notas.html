@@ -87,6 +87,7 @@
     <button type="button" class="btn-secundario" (click)="gerarResumo()" [disabled]="carregandoResumo()">
       {{ carregandoResumo() ? 'Gerando...' : 'Gerar resumo com IA' }}
     </button>
+    <a class="btn-secundario btn-pdf" [href]="relatorioUrl()" target="_blank">Imprimir Relatório</a>
     @if (resumoIA()) {
       <p class="texto-resumo">{{ resumoIA() }}</p>
     }

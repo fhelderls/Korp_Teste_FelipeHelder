@@ -117,6 +117,10 @@ export class Notas implements OnInit {
     return this.notasService.pdfUrl(chave);
   }
 
+  relatorioUrl(): string {
+    return this.notasService.relatorioUrl();
+  }
+
   gerarResumo(): void {
     this.carregandoResumo.set(true);
     this.resumoIA.set('');

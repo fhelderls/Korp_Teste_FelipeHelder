@@ -129,6 +129,63 @@ func (h *NotasHandlers) List(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(notas)
 }
 
+// dadosAgregados junta os numeros de faturamento (contagem por status,
+// quantidade/valor totais e por produto/cliente) usados tanto pelo resumo
+// com IA quanto pelo relatorio em PDF - evita calcular a mesma coisa duas
+// vezes em handlers diferentes.
+type dadosAgregados struct {
+	contagem             map[string]int
+	quantidadePorProduto map[string]int
+	valorPorProduto      map[string]float64
+	quantidadePorCliente map[string]int
+	valorPorCliente      map[string]float64
+	quantidadeTotal      int
+	valorTotal           float64
+}
+
+func (h *NotasHandlers) agregarDados(notas []models.NotaFiscal) dadosAgregados {
+	precos := map[string]float64{}
+	descricoes := map[string]string{}
+	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
+		for _, p := range produtos {
+			precos[p.Codigo] = p.Preco
+			descricoes[p.Codigo] = p.Descricao
+		}
+	}
+
+	a := dadosAgregados{
+		contagem:             map[string]int{},
+		quantidadePorProduto: map[string]int{},
+		valorPorProduto:      map[string]float64{},
+		quantidadePorCliente: map[string]int{},
+		valorPorCliente:      map[string]float64{},
+	}
+
+	for _, nota := range notas {
+		a.contagem[nota.Status]++
+		if nota.Status != "Fechada" {
+			continue
+		}
+		for _, item := range nota.Itens {
+			// usa a descricao do produto na agregacao (nao o codigo PROD-XXX),
+			// pra os relatorios falarem em nomes reais de produto
+			nomeProduto := descricoes[item.ProdutoCodigo]
+			if nomeProduto == "" {
+				nomeProduto = item.ProdutoCodigo
+			}
+
+			valorItem := precos[item.ProdutoCodigo] * float64(item.Quantidade)
+			a.quantidadeTotal += item.Quantidade
+			a.valorTotal += valorItem
+			a.quantidadePorProduto[nomeProduto] += item.Quantidade
+			a.valorPorProduto[nomeProduto] += valorItem
+			a.quantidadePorCliente[nota.Cliente] += item.Quantidade
+			a.valorPorCliente[nota.Cliente] += valorItem
+		}
+	}
+	return a
+}
+
 // Resumo agrega os dados das notas fechadas (contagem por status, valor
 // liquido de vendas, quantidade e valor por produto e por cliente, no
 // estilo do painel de insights da Korp) e pede pra IA gerar um resumo
@@ -140,45 +197,7 @@ func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	precos := map[string]float64{}
-	descricoes := map[string]string{}
-	if produtos, err := h.estoqueClient.ListarProdutos(); err == nil {
-		for _, p := range produtos {
-			precos[p.Codigo] = p.Preco
-			descricoes[p.Codigo] = p.Descricao
-		}
-	}
-
-	contagem := map[string]int{}
-	quantidadePorProduto := map[string]int{}
-	valorPorProduto := map[string]float64{}
-	quantidadePorCliente := map[string]int{}
-	valorPorCliente := map[string]float64{}
-	quantidadeTotal := 0
-	valorTotal := 0.0
-
-	for _, nota := range notas {
-		contagem[nota.Status]++
-		if nota.Status != "Fechada" {
-			continue
-		}
-		for _, item := range nota.Itens {
-			// usa a descricao do produto na agregacao (nao o codigo PROD-XXX),
-			// pra o resumo da IA falar em nomes reais de produto
-			nomeProduto := descricoes[item.ProdutoCodigo]
-			if nomeProduto == "" {
-				nomeProduto = item.ProdutoCodigo
-			}
-
-			valorItem := precos[item.ProdutoCodigo] * float64(item.Quantidade)
-			quantidadeTotal += item.Quantidade
-			valorTotal += valorItem
-			quantidadePorProduto[nomeProduto] += item.Quantidade
-			valorPorProduto[nomeProduto] += valorItem
-			quantidadePorCliente[nota.Cliente] += item.Quantidade
-			valorPorCliente[nota.Cliente] += valorItem
-		}
-	}
+	a := h.agregarDados(notas)
 
 	prompt := fmt.Sprintf(
 		"Voce e um assistente de insights de um sistema de emissao de notas fiscais, no estilo do painel de "+
@@ -188,10 +207,10 @@ func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
 			"Quantidade vendida por produto: %v. Valor de vendas por produto: %v. "+
 			"Quantidade vendida por cliente: %v. Valor de vendas por cliente: %v. "+
 			"Destaque o produto mais vendido e o cliente com maior valor de compra.",
-		contagem["Fechada"], contagem["Aberta"],
-		quantidadeTotal, valorTotal,
-		quantidadePorProduto, valorPorProduto,
-		quantidadePorCliente, valorPorCliente,
+		a.contagem["Fechada"], a.contagem["Aberta"],
+		a.quantidadeTotal, a.valorTotal,
+		a.quantidadePorProduto, a.valorPorProduto,
+		a.quantidadePorCliente, a.valorPorCliente,
 	)
 
 	resumo, err := h.aiClient.Resumir(prompt)
@@ -202,6 +221,37 @@ func (h *NotasHandlers) Resumo(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]string{"resumo": resumo})
+}
+
+// Relatorio gera um PDF de faturamento com os totais gerais e graficos de
+// barra horizontal de faturamento por produto e por cliente, no estilo do
+// painel de faturamento da Korp (Faturamento por Produto, Faturamento por
+// Cliente, Painel de Resumo de Faturamento).
+func (h *NotasHandlers) Relatorio(w http.ResponseWriter, r *http.Request) {
+	notas, err := h.store.GetAll()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	a := h.agregarDados(notas)
+
+	arquivo, err := pdf.GerarRelatorio(pdf.DadosRelatorio{
+		NotasFechadas:   a.contagem["Fechada"],
+		NotasAbertas:    a.contagem["Aberta"],
+		QuantidadeTotal: a.quantidadeTotal,
+		ValorTotal:      a.valorTotal,
+		PorProduto:      a.valorPorProduto,
+		PorCliente:      a.valorPorCliente,
+	})
+	if err != nil {
+		http.Error(w, "falha ao gerar relatorio: "+err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/pdf")
+	w.Header().Set("Content-Disposition", `attachment; filename="relatorio-faturamento.pdf"`)
+	w.Write(arquivo)
 }
 
 // PDF gera e devolve o PDF de uma nota fiscal, buscando a descricao e o
