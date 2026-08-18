@@ -56,6 +56,14 @@ Isso sobe:
 
 Acesse `http://localhost:4200` para usar a interface.
 
+**3. (Opcional) Popule com dados de exemplo**, para testar a interface, o resumo de IA e o relatório em PDF sem cadastrar tudo manualmente. Com os containers no ar, rode no Git Bash:
+
+```bash
+bash scripts/seed.sh
+```
+
+O script cria 15 produtos e 18 notas fiscais via API (usando os mesmos endpoints públicos do sistema, sem acesso direto ao banco): a maioria fechada com dados variados de cliente/produto, duas propositalmente deixadas "Aberta" e uma que falha de propósito (quantidade maior que o saldo), para exercitar o cenário de erro.
+
 ## Testando o cenário de falha manualmente
 
 ```bash
