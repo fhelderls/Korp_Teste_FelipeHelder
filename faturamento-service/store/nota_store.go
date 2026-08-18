@@ -37,7 +37,11 @@ func (s *NotasStore) Create(nota *models.NotaFiscal) error {
 		`INSERT INTO notas (chave, cliente, itens, status) VALUES ($1,$2,$3,'Aberta')`,
 		nota.Chave, nota.Cliente, string(itensJSON),
 	)
-	return err
+	if err != nil {
+		return err
+	}
+	nota.Status = "Aberta"
+	return nil
 
 }
 
