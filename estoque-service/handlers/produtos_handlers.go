@@ -23,6 +23,19 @@ func (h *ProdutosHandlers) Create(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if produto.Descricao == "" {
+		http.Error(w, "descricao e obrigatoria", http.StatusBadRequest)
+		return
+	}
+	if produto.Saldo < 0 {
+		http.Error(w, "saldo nao pode ser negativo", http.StatusBadRequest)
+		return
+	}
+	if produto.Preco <= 0 {
+		http.Error(w, "preco e obrigatorio e precisa ser maior que zero", http.StatusBadRequest)
+		return
+	}
+
 	if err := h.store.Create(&produto); err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return

@@ -31,7 +31,26 @@ export class Produtos implements OnInit {
   }
 
   criar(): void {
-    this.novoProduto.preco = parseFloat(this.precoTexto.replace(',', '.')) || 0;
+    this.erro.set('');
+
+    if (!this.novoProduto.descricao?.trim()) {
+      this.erro.set('Preencha a descrição do produto.');
+      return;
+    }
+    if (this.novoProduto.saldo === null || this.novoProduto.saldo === undefined || isNaN(this.novoProduto.saldo) || this.novoProduto.saldo < 0) {
+      this.erro.set('Preencha o saldo do produto.');
+      return;
+    }
+    if (!this.precoTexto?.trim()) {
+      this.erro.set('Preencha o preço do produto.');
+      return;
+    }
+    const preco = parseFloat(this.precoTexto.replace(',', '.'));
+    if (isNaN(preco) || preco <= 0) {
+      this.erro.set('Preço precisa ser maior que zero.');
+      return;
+    }
+    this.novoProduto.preco = preco;
 
     this.produtosService.criar(this.novoProduto).subscribe({
       next: () => {
