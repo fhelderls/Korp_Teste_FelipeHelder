@@ -4,9 +4,22 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"korp-teste/estoque-service/models"
 )
+
+// TTLReserva e o tempo maximo que uma reserva pode ficar 'pendente' antes de
+// nao poder mais ser confirmada. Existe pra fechar uma brecha de negocio: como
+// o faturamento-service trava a descricao e o preco do produto no momento em
+// que a nota e criada (Reservar), mas o saldo so e verificado na confirmacao,
+// uma nota 'Aberta' sem limite de tempo vira um jeito de segurar um preco
+// antigo indefinidamente (ex: criar notas durante uma promocao relampago e so
+// confirmar depois que o preco normal voltou). Passado o TTL, a proxima
+// tentativa de confirmar cancela a reserva automaticamente em vez de aceitar.
+// 7 dias segue a mesma logica de um orcamento comercial com prazo de validade
+// (ex: "orcamento valido por 7 dias"), em vez de um valor arbitrario curto.
+const TTLReserva = 7 * 24 * time.Hour
 
 type ReservasStore struct {
 	db *sql.DB
@@ -85,14 +98,25 @@ func (s *ReservasStore) Confirmar(chave string) error {
 
 	var status string
 	var itensJSON string
+	var criadoEm time.Time
 	err = tx.QueryRow(
-		`SELECT status, itens FROM reservas WHERE chave = $1 FOR UPDATE`, chave,
-	).Scan(&status, &itensJSON)
+		`SELECT status, itens, criado_em FROM reservas WHERE chave = $1 FOR UPDATE`, chave,
+	).Scan(&status, &itensJSON, &criadoEm)
 	if err != nil {
 		return fmt.Errorf("reserva %s: %w", chave, err)
 	}
 	if status != "pendente" {
 		return fmt.Errorf("reserva %s nao esta pendente, status atual %s", chave, status)
+	}
+
+	if time.Since(criadoEm) > TTLReserva {
+		if _, err := tx.Exec(`UPDATE reservas SET status = 'cancelada' WHERE chave = $1`, chave); err != nil {
+			return fmt.Errorf("falha ao cancelar reserva expirada %s: %w", chave, err)
+		}
+		if err := tx.Commit(); err != nil {
+			return fmt.Errorf("falha ao registrar cancelamento da reserva expirada %s: %w", chave, err)
+		}
+		return fmt.Errorf("reserva %s expirou (criada ha mais de %s) e foi cancelada automaticamente", chave, TTLReserva)
 	}
 
 	var itens []models.ItemReserva
@@ -131,12 +155,18 @@ func (s *ReservasStore) Confirmar(chave string) error {
 	return tx.Commit()
 }
 
-// Cancelar marca uma reserva pendente como cancelada. Como Reservar nao
-// desconta saldo (isso so acontece na confirmacao), cancelar uma reserva
-// pendente nao precisa devolver nada ao estoque - so libera a reserva.
+// Cancelar marca uma reserva como cancelada, liberando a reserva de estoque
+// (sem devolver saldo, ja que Reservar nunca descontou nada). E idempotente:
+// cancelar uma reserva que ja esta 'cancelada' e sucesso (no-op), pra
+// suportar chamadas repetidas com seguranca - por exemplo, o
+// faturamento-service tentando de novo depois de uma falha de rede, ou uma
+// reserva que ja tinha expirado sozinha pelo TTL embutido no Confirmar (ver
+// TTLReserva). So continua sendo erro cancelar uma reserva que nao existe ou
+// que ja foi 'confirmada' - essa e definitiva, o saldo ja foi debitado de
+// verdade e nao pode ser desfeita por aqui.
 func (s *ReservasStore) Cancelar(chave string) error {
 	res, err := s.db.Exec(
-		`UPDATE reservas SET status = 'cancelada' WHERE chave = $1 AND status = 'pendente'`,
+		`UPDATE reservas SET status = 'cancelada' WHERE chave = $1 AND status IN ('pendente', 'cancelada')`,
 		chave,
 	)
 	if err != nil {
@@ -147,7 +177,7 @@ func (s *ReservasStore) Cancelar(chave string) error {
 		return fmt.Errorf("falha ao verificar cancelamento de reserva %s: %w", chave, err)
 	}
 	if linhas == 0 {
-		return fmt.Errorf("reserva %s nao encontrada ou nao esta pendente", chave)
+		return fmt.Errorf("reserva %s nao encontrada ou ja confirmada", chave)
 	}
 	return nil
 }

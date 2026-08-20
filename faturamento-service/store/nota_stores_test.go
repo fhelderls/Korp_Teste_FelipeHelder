@@ -103,6 +103,112 @@ func TestMarcarEmitida(t *testing.T) {
 	}
 }
 
+func TestListarAbertasVencidas(t *testing.T) {
+	store := NewNotasStore(testDB)
+
+	notaVencida := &models.NotaFiscal{
+		Cliente: "Cliente Vencido",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
+	}
+	if err := store.Create(notaVencida); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, notaVencida.Chave)
+
+	notaRecente := &models.NotaFiscal{
+		Cliente: "Cliente Recente",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
+	}
+	if err := store.Create(notaRecente); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, notaRecente.Chave)
+
+	// forca a primeira nota a parecer criada ha mais tempo que o TTL (7 dias)
+	if _, err := testDB.Exec(
+		`UPDATE notas SET criado_em = NOW() - $1::interval WHERE chave = $2`,
+		"8 days", notaVencida.Chave,
+	); err != nil {
+		t.Fatalf("falha ao forcar nota vencida no teste: %v", err)
+	}
+
+	chaves, err := store.ListarAbertasVencidas()
+	if err != nil {
+		t.Fatalf("ListarAbertasVencidas retornou erro inesperado: %v", err)
+	}
+
+	achouVencida := false
+	for _, c := range chaves {
+		if c == notaVencida.Chave {
+			achouVencida = true
+		}
+		if c == notaRecente.Chave {
+			t.Errorf("nota recente %s nao deveria aparecer como vencida", notaRecente.Chave)
+		}
+	}
+	if !achouVencida {
+		t.Errorf("nota vencida %s deveria ter aparecido na lista, obtido %v", notaVencida.Chave, chaves)
+	}
+
+	// ListarAbertasVencidas so consulta - nao deve ter mudado o status de ninguem
+	encontrada, err := store.GetByChave(notaVencida.Chave)
+	if err != nil {
+		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
+	}
+	if encontrada.Status != "Aberta" {
+		t.Errorf("ListarAbertasVencidas nao deveria mudar o status, esperado 'Aberta', obtido %q", encontrada.Status)
+	}
+}
+
+func TestMarcarCancelada(t *testing.T) {
+	store := NewNotasStore(testDB)
+
+	nota := &models.NotaFiscal{
+		Cliente: "Cliente Teste",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
+	}
+	if err := store.Create(nota); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, nota.Chave)
+
+	if err := store.MarcarCancelada(nota.Chave); err != nil {
+		t.Fatalf("MarcarCancelada retornou erro inesperado: %v", err)
+	}
+
+	encontrada, err := store.GetByChave(nota.Chave)
+	if err != nil {
+		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
+	}
+	if encontrada.Status != "Cancelada" {
+		t.Errorf("status esperado 'Cancelada', obtido %q", encontrada.Status)
+	}
+
+	// nao deve mexer numa nota ja 'Fechada' (MarcarCancelada so vale para 'Aberta')
+	notaFechada := &models.NotaFiscal{
+		Cliente: "Cliente Fechado",
+		Itens:   []models.ItemNota{{ProdutoCodigo: "P001", Quantidade: 1}},
+	}
+	if err := store.Create(notaFechada); err != nil {
+		t.Fatalf("Create retornou erro inesperado: %v", err)
+	}
+	defer testDB.Exec(`DELETE FROM notas WHERE chave = $1`, notaFechada.Chave)
+	if _, err := store.MarcarEmitida(notaFechada.Chave); err != nil {
+		t.Fatalf("MarcarEmitida retornou erro inesperado: %v", err)
+	}
+
+	if err := store.MarcarCancelada(notaFechada.Chave); err != nil {
+		t.Fatalf("MarcarCancelada nao deveria retornar erro (so nao afeta linha nenhuma): %v", err)
+	}
+	aindaFechada, err := store.GetByChave(notaFechada.Chave)
+	if err != nil {
+		t.Fatalf("GetByChave retornou erro inesperado: %v", err)
+	}
+	if aindaFechada.Status != "Fechada" {
+		t.Errorf("nota 'Fechada' nao deveria ter sido alterada por MarcarCancelada, obtido %q", aindaFechada.Status)
+	}
+}
+
 func TestGetByChave_NaoEncontrada(t *testing.T) {
 	store := NewNotasStore(testDB)
 

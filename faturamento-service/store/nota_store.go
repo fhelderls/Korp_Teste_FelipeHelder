@@ -9,6 +9,14 @@ import (
 	"korp-teste/faturamento-service/models"
 )
 
+// TTLReserva e o prazo de validade de uma nota 'Aberta' - depois disso, ela
+// e candidata a expiracao automatica (ver ListarAbertasVencidas). Espelha o
+// TTLReserva do estoque-service: os dois servicos tem bancos isolados e nao
+// compartilham codigo, entao o mesmo valor de negocio (validade de 7 dias,
+// no estilo de um orcamento comercial) precisa ficar sincronizado manualmente
+// nos dois lados.
+const TTLReserva = 7 * 24 * time.Hour
+
 type NotasStore struct {
 	db *sql.DB
 }
@@ -90,6 +98,42 @@ func (s *NotasStore) GetAll() ([]models.NotaFiscal, error) {
 		notas = append(notas, nota)
 	}
 	return notas, rows.Err()
+}
+
+// ListarAbertasVencidas retorna as chaves das notas 'Aberta' cuja reserva de
+// estoque ja passou do prazo de validade (TTLReserva) - candidatas a serem
+// canceladas automaticamente. So consulta, nao muda nada: a nota so vira
+// 'Cancelada' de fato depois que a reserva correspondente for liberada com
+// sucesso no estoque-service (ver MarcarCancelada e o handler que orquestra
+// os dois passos).
+func (s *NotasStore) ListarAbertasVencidas() ([]string, error) {
+	rows, err := s.db.Query(
+		`SELECT chave FROM notas WHERE status = 'Aberta' AND criado_em < NOW() - $1::interval`,
+		fmt.Sprintf("%d seconds", int64(TTLReserva.Seconds())),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("falha ao buscar notas vencidas: %w", err)
+	}
+	defer rows.Close()
+
+	var chaves []string
+	for rows.Next() {
+		var chave string
+		if err := rows.Scan(&chave); err != nil {
+			return nil, err
+		}
+		chaves = append(chaves, chave)
+	}
+	return chaves, rows.Err()
+}
+
+// MarcarCancelada muda o status de uma nota fiscal 'Aberta' para 'Cancelada'
+// (sem remove-la, ao contrario do cancelamento manual pelo usuario, que
+// exclui a nota). Usado so na expiracao automatica por TTL: mantem o
+// registro historico de que a nota existiu e expirou, em vez de apagar.
+func (s *NotasStore) MarcarCancelada(chave string) error {
+	_, err := s.db.Exec(`UPDATE notas SET status = 'Cancelada' WHERE chave = $1 AND status = 'Aberta'`, chave)
+	return err
 }
 
 // GetByChave busca uma nota fiscal pela chave. Retorna sql.ErrNoRows se nao existir.

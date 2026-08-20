@@ -225,6 +225,11 @@ tbody tr:hover {
   color: #8a6100;
 }
 
+.status-badge.status-Cancelada {
+  background: #fbe4e4;
+  color: #a3231f;
+}
+
 /* Resumo com IA */
 .resumo-ia {
   margin-top: 20px;

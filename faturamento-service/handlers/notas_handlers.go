@@ -190,8 +190,32 @@ func (h *NotasHandlers) Cancelar(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(http.StatusNoContent)
 }
 
+// expirarNotasVencidas varre as notas 'Aberta' cuja reserva de estoque ja
+// passou do prazo de validade (TTLReserva) e as cancela de verdade: libera a
+// reserva no estoque-service primeiro, e so marca a nota como 'Cancelada'
+// depois que a liberacao for confirmada - assim nunca fica uma nota
+// cancelada com uma reserva de estoque ainda presa do outro lado. Se a
+// liberacao falhar (ex: estoque-service fora do ar), essa nota continua
+// 'Aberta' por enquanto e a tentativa se repete sozinha na proxima vez que a
+// lista for carregada - sem precisar de um job em background rodando
+// sozinho, e sem risco de perder o rastro do estoque reservado.
+func (h *NotasHandlers) expirarNotasVencidas() {
+	chaves, err := h.store.ListarAbertasVencidas()
+	if err != nil {
+		return
+	}
+	for _, chave := range chaves {
+		if err := h.estoqueClient.Cancelar(chave); err != nil {
+			continue
+		}
+		h.store.MarcarCancelada(chave)
+	}
+}
+
 // List retorna todas as notas fiscais cadastradas.
 func (h *NotasHandlers) List(w http.ResponseWriter, r *http.Request) {
+	h.expirarNotasVencidas()
+
 	notas, err := h.store.GetAll()
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)

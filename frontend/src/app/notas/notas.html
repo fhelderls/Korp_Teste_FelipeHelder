@@ -78,7 +78,7 @@
                 <button type="button" class="btn-excluir" (click)="cancelar(nota)" [disabled]="emitindo() === nota.chave || cancelando() === nota.chave">
                   {{ cancelando() === nota.chave ? 'Cancelando...' : 'Cancelar' }}
                 </button>
-              } @else {
+              } @else if (nota.status === 'Fechada') {
                 <a class="btn-secundario btn-pdf" [href]="pdfUrl(nota.chave)" target="_blank">Baixar PDF</a>
               }
             </td>
